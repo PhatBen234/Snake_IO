@@ -5,7 +5,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 
 const socketHandler = require("./sockets/socketHandler");
-const firebaseService = require("./services/firebaseService");
+const firebaseService = require("./db/firebaseService");
 
 const app = express();
 
