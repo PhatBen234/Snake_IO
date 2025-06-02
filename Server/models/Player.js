@@ -4,11 +4,10 @@ class Player {
     this.name = name;
     this.score = 0;
     this.alive = true;
-
     this.position = startPosition;
     this.direction = { x: 1, y: 0 };
     this.speed = 5;
-    this.body = [ { ...startPosition } ];
+    this.body = [{ ...startPosition }];
     this.length = 1;
   }
 
@@ -16,13 +15,22 @@ class Player {
     this.direction = newDirection;
   }
 
+  grow(amount = 1) {
+    this.length += amount;
+    this.score += amount;
+  }
+
   reset(startPosition = { x: 0, y: 0 }) {
     this.position = startPosition;
-    this.body = [ { ...startPosition } ];
+    this.body = [{ ...startPosition }];
     this.length = 1;
     this.alive = true;
     this.score = 0;
     this.direction = { x: 1, y: 0 };
+  }
+
+  setAlive(alive) {
+    this.alive = alive;
   }
 }
 
