@@ -44,22 +44,94 @@ module.exports = function (io) {
       socket.join(roomId);
       socket.data = { roomId, playerId }; // Store for cleanup
 
-      // Emit success
+      // Get room data with players info - FIX: Convert Map to Array
+      const roomData = {
+        roomId: roomId,
+        maxPlayers: controller.room.maxPlayers || 4,
+        players: Array.from(controller.room.players.values()).map(p => ({
+          id: p.id,
+          name: p.name,
+          ready: p.ready || false
+        }))
+      };
+
+      // Emit success with room data
       socket.emit("joined-room", {
         roomId,
         playerId,
-        roomData: controller.getRoomData(),
+        roomData: roomData,
       });
 
-      // Notify other players
+      // Notify other players with updated room data
       socket.to(roomId).emit("player-joined", {
         playerId,
         playerName,
+        roomData: roomData
       });
 
       console.log(
         `📥 Player ${playerName} (${playerId}) joined room ${roomId}`
       );
+    });
+
+    socket.on("start-game", (data) => {
+      const { roomId, playerId } = data;
+      const controller = controllers.get(roomId);
+
+      if (controller) {
+        // Check if player can start game (maybe only room creator or when room is full)
+        const canStart = controller.room.players.size >= 2; // Min 2 players to start
+        
+        if (canStart) {
+          // Start the game
+          controller.gameService.start();
+          
+          // Notify all players in room
+          io.to(roomId).emit("game-started", {
+            roomId: roomId,
+            players: controller.room.players.size
+          });
+          
+          console.log(`🚀 Game started in room ${roomId}`);
+        } else {
+          socket.emit("start-game-failed", { 
+            reason: "Need at least 2 players to start" 
+          });
+        }
+      }
+    });
+
+    socket.on("leave-room", (data) => {
+      const { roomId, playerId } = data;
+      const controller = controllers.get(roomId);
+
+      if (controller) {
+        controller.removePlayer(playerId);
+        socket.leave(roomId);
+
+        // Get updated room data - FIX: Convert Map to Array
+        const roomData = {
+          roomId: roomId,
+          maxPlayers: controller.room.maxPlayers || 4,
+          players: Array.from(controller.room.players.values()).map(p => ({
+            id: p.id,
+            name: p.name,
+            ready: p.ready || false
+          }))
+        };
+
+        // Notify other players
+        socket.to(roomId).emit("player-left", { 
+          playerId,
+          roomData: roomData
+        });
+
+        // Clean up empty rooms
+        if (RoomService.isEmpty(controller.room)) {
+          controllers.delete(roomId);
+          console.log(`🗑️ Room ${roomId} deleted (empty)`);
+        }
+      }
     });
 
     socket.on("player-move", (data) => {
@@ -81,8 +153,22 @@ module.exports = function (io) {
       if (controller) {
         controller.removePlayer(playerId);
 
+        // Get updated room data - FIX: Convert Map to Array  
+        const roomData = {
+          roomId: roomId,
+          maxPlayers: controller.room.maxPlayers || 4,
+          players: Array.from(controller.room.players.values()).map(p => ({
+            id: p.id,
+            name: p.name,
+            ready: p.ready || false
+          }))
+        };
+
         // Notify other players
-        socket.to(roomId).emit("player-left", { playerId });
+        socket.to(roomId).emit("player-left", { 
+          playerId,
+          roomData: roomData
+        });
 
         // Clean up empty rooms
         if (RoomService.isEmpty(controller.room)) {
