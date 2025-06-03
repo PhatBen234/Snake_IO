@@ -1,3 +1,5 @@
+const PlayerController = require("../controllers/PlayerController");
+
 class PlayerService {
   static movePlayer(player) {
     if (!player.alive) return;
@@ -25,7 +27,7 @@ class PlayerService {
 
   static changeDirection(player, newDirection) {
     if (this.validateDirection(player, newDirection)) {
-      player.setDirection(newDirection);
+      PlayerController.setPlayerDirection(player, newDirection);
       return true;
     }
     return false;
@@ -57,7 +59,7 @@ class PlayerService {
   }
 
   static resetPlayer(player, startPosition) {
-    player.reset(startPosition);
+    PlayerController.resetPlayer(player, startPosition);
   }
 }
 

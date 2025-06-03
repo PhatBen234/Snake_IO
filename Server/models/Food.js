@@ -6,8 +6,13 @@ class Food {
     this.value = 1;
   }
 
-  setAlive(alive) {
-    this.alive = alive;
+  destroy(targetId) {
+    if (this.id === targetId) {
+      this.alive = false;
+      console.log("Food: ${this.id} is destroy!");
+      return true;
+    }
+    return false;
   }
 }
 

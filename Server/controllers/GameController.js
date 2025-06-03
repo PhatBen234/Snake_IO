@@ -1,4 +1,4 @@
-// controllers/GameController.js
+// controllers/GameController.js - Fixed để truyền reference cho GameService
 const Room = require("../models/Room");
 const GameService = require("../services/GameService");
 const RoomService = require("../services/RoomService");
@@ -7,20 +7,24 @@ const PlayerService = require("../services/PlayerService");
 class GameController {
   constructor(roomId, io) {
     this.room = new Room(roomId);
-    this.gameService = new GameService(this.room, io);
     this.io = io;
+    // Truyền reference của GameController cho GameService
+    this.gameService = new GameService(this.room, io, this);
   }
 
+  // Logic từ Room model
   addPlayer(player) {
-    const success = this.room.addPlayer(player);
-    if (success && RoomService.canStart(this.room)) {
+    if (this.room.players.size >= this.room.maxPlayers) return false;
+    this.room.players.set(player.id, player);
+
+    if (RoomService.canStart(this.room)) {
       this.gameService.start();
     }
-    return success;
+    return true;
   }
 
   removePlayer(playerId) {
-    this.room.removePlayer(playerId);
+    this.room.players.delete(playerId);
 
     if (RoomService.isEmpty(this.room)) {
       this.gameService.stop();
@@ -30,6 +34,25 @@ class GameController {
     ) {
       this.gameService.endGame();
     }
+  }
+
+  addFood(food) {
+    this.room.foods.set(food.id, food);
+  }
+
+  removeFood(foodId) {
+    return this.room.foods.delete(foodId);
+  }
+
+  setRoomStatus(status) {
+    this.room.status = status;
+  }
+
+  resetRoom() {
+    this.room.status = "waiting";
+    this.room.players.clear();
+    this.room.foods.clear();
+    this.room.createdAt = Date.now();
   }
 
   changePlayerDirection(playerId, direction) {

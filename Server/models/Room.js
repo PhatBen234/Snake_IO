@@ -13,35 +13,6 @@ class Room {
     };
     this.createdAt = Date.now();
   }
-
-  addPlayer(player) {
-    if (this.players.size >= this.maxPlayers) return false;
-    this.players.set(player.id, player);
-    return true;
-  }
-
-  removePlayer(playerId) {
-    return this.players.delete(playerId);
-  }
-
-  addFood(food) {
-    this.foods.set(food.id, food);
-  }
-
-  removeFood(foodId) {
-    return this.foods.delete(foodId);
-  }
-
-  setStatus(status) {
-    this.status = status;
-  }
-
-  reset() {
-    this.status = "waiting";
-    this.players.clear();
-    this.foods.clear();
-    this.createdAt = Date.now();
-  }
 }
 
 module.exports = Room;

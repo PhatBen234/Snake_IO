@@ -1,4 +1,5 @@
 const PlayerService = require("./PlayerService");
+const PlayerController = require("../controllers/PlayerController");
 
 class CollisionService {
   static checkAllCollisions(room) {
@@ -9,20 +10,20 @@ class CollisionService {
 
       // Wall collision
       if (PlayerService.checkWallCollision(player, width, height)) {
-        player.setAlive(false);
+        PlayerController.setPlayerAlive(player, false);
         return;
       }
 
       // Self collision
       if (PlayerService.checkSelfCollision(player)) {
-        player.setAlive(false);
+        PlayerController.setPlayerAlive(player, false);
         return;
       }
 
       // Player vs player collision
       room.players.forEach((otherPlayer) => {
         if (PlayerService.checkPlayerCollision(player, otherPlayer)) {
-          player.setAlive(false);
+          PlayerController.setPlayerAlive(player, false);
         }
       });
     });

@@ -4,16 +4,17 @@ const CollisionService = require("./CollisionService");
 const RoomService = require("./RoomService");
 
 class GameService {
-  constructor(room, io) {
+  constructor(room, io, gameController) {
     this.room = room;
     this.io = io;
+    this.gameController = gameController; // Reference to GameController
     this.gameInterval = null;
   }
 
   start() {
     if (this.room.status === "playing") return;
 
-    this.room.setStatus("playing");
+    this.gameController.setRoomStatus("playing");
     FoodService.spawnFood(this.room);
 
     this.gameInterval = setInterval(() => {
@@ -28,7 +29,7 @@ class GameService {
       clearInterval(this.gameInterval);
       this.gameInterval = null;
     }
-    this.room.setStatus("finished");
+    this.gameController.setRoomStatus("finished");
     this.io.to(this.room.id).emit("game-stopped");
   }
 
@@ -68,7 +69,7 @@ class GameService {
       this.room.foods.forEach((food) => {
         if (FoodService.checkFoodCollision(player, food)) {
           FoodService.consumeFood(player, food);
-          this.room.removeFood(food.id);
+          this.gameController.removeFood(food.id);
         }
       });
     });

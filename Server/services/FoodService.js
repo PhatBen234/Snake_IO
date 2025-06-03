@@ -1,4 +1,5 @@
 const Food = require("../models/Food");
+const PlayerController = require("../controllers/PlayerController");
 const { v4: uuidv4 } = require("uuid");
 
 class FoodService {
@@ -7,7 +8,7 @@ class FoodService {
       const id = uuidv4();
       const position = this.getRandomPosition(room.config);
       const food = new Food(id, position);
-      room.addFood(food);
+      room.foods.set(food.id, food); // Trực tiếp thêm vào room
     }
   }
 
@@ -31,8 +32,8 @@ class FoodService {
   }
 
   static consumeFood(player, food) {
-    food.setAlive(false);
-    player.grow(food.value);
+    PlayerController.setFoodAlive(food, false);
+    PlayerController.growPlayer(player, food.value);
   }
 }
 
