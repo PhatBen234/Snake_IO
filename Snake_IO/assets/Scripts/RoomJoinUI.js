@@ -15,6 +15,9 @@ export default class RoomJoinUI extends cc.Component {
   @property(cc.Button)
   joinBtn = null;
 
+  @property(cc.Button)
+  createLobbyBtn = null;
+
   @property(cc.Label)
   statusLabel = null;
 
