@@ -1,7 +1,13 @@
 const Player = require("../models/Player");
 const GameController = require("../controllers/GameController");
+const FoodService = require("../services/FoodService");
+const RoomService = require("../services/RoomService");
 
 const controllers = new Map();
+
+function getRandomStartPosition(roomConfig) {
+  return FoodService.getRandomPosition(roomConfig);
+}
 
 module.exports = function (io) {
   io.on("connection", (socket) => {
@@ -10,32 +16,46 @@ module.exports = function (io) {
     socket.on("join-room", (data) => {
       const { playerId, playerName, roomId } = data;
 
+      // Get or create controller
       let controller = controllers.get(roomId);
       if (!controller) {
         controller = new GameController(roomId, io);
         controllers.set(roomId, controller);
       }
 
-      const player = new Player(playerId, playerName, {
-        x: Math.random() * controller.room.config.width,
-        y: Math.random() * controller.room.config.height,
-      });
-
-      const success = controller.addPlayer(player);
-      if (!success) {
+      // Check if room is full
+      if (RoomService.isFull(controller.room)) {
         socket.emit("room-full");
         return;
       }
 
-      socket.join(roomId);
-      socket.emit("joined-room", { roomId, playerId });
+      // Create player with random start position
+      const startPosition = getRandomStartPosition(controller.room.config);
+      const player = new Player(playerId, playerName, startPosition);
 
-      if (
-        controller.room.players.size >= 2 &&
-        controller.room.status !== "playing"
-      ) {
-        controller.startGame();
+      // Add player to room
+      const success = controller.addPlayer(player);
+      if (!success) {
+        socket.emit("join-failed", { reason: "Could not join room" });
+        return;
       }
+
+      // Join socket room
+      socket.join(roomId);
+      socket.data = { roomId, playerId }; // Store for cleanup
+
+      // Emit success
+      socket.emit("joined-room", {
+        roomId,
+        playerId,
+        roomData: controller.getRoomData(),
+      });
+
+      // Notify other players
+      socket.to(roomId).emit("player-joined", {
+        playerId,
+        playerName,
+      });
 
       console.log(
         `📥 Player ${playerName} (${playerId}) joined room ${roomId}`
@@ -45,27 +65,35 @@ module.exports = function (io) {
     socket.on("player-move", (data) => {
       const { roomId, playerId, direction } = data;
       const controller = controllers.get(roomId);
-      if (!controller) return;
 
-      const player = controller.room.players.get(playerId);
-      if (player) player.setDirection(direction);
+      if (controller) {
+        controller.changePlayerDirection(playerId, direction);
+      }
     });
 
     socket.on("disconnect", () => {
       console.log("❌ Client disconnected:", socket.id);
 
-      for (const [roomId, controller] of controllers) {
-        if (controller.room.players.has(socket.id)) {
-          controller.removePlayer(socket.id);
-          io.to(roomId).emit("player-left", { playerId: socket.id });
+      const { roomId, playerId } = socket.data || {};
+      if (!roomId || !playerId) return;
 
-          if (controller.room.players.size === 0) {
-            controller.stopGame();
-            controllers.delete(roomId);
-          }
-          break;
+      const controller = controllers.get(roomId);
+      if (controller) {
+        controller.removePlayer(playerId);
+
+        // Notify other players
+        socket.to(roomId).emit("player-left", { playerId });
+
+        // Clean up empty rooms
+        if (RoomService.isEmpty(controller.room)) {
+          controllers.delete(roomId);
+          console.log(`🗑️ Room ${roomId} deleted (empty)`);
         }
       }
+    });
+
+    socket.on("error", (error) => {
+      console.error("Socket error:", error);
     });
   });
 };

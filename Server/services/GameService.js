@@ -1,71 +1,102 @@
-const Player = require("../models/Player");
-const Food = require("../models/Food");
-const { v4: uuidv4 } = require("uuid");
+const FoodService = require("./FoodService");
+const PlayerService = require("./PlayerService");
+const CollisionService = require("./CollisionService");
+const RoomService = require("./RoomService");
 
 class GameService {
-  constructor(room) {
+  constructor(room, io, gameController) {
     this.room = room;
+    this.io = io;
+    this.gameController = gameController; // Reference to GameController
+    this.gameInterval = null;
   }
 
-  movePlayer(playerId) {
-    const player = this.room.players.get(playerId);
-    if (!player || !player.alive) return;
+  start() {
+    if (this.room.status === "playing") return;
 
-    const newHead = {
-      x: player.position.x + player.direction.x * player.speed,
-      y: player.position.y + player.direction.y * player.speed,
+    this.gameController.setRoomStatus("playing");
+    FoodService.spawnFood(this.room);
+
+    this.gameInterval = setInterval(() => {
+      this.update();
+    }, 1000 / 10); // 10 FPS
+
+    this.io.to(this.room.id).emit("game-started");
+  }
+
+  stop() {
+    if (this.gameInterval) {
+      clearInterval(this.gameInterval);
+      this.gameInterval = null;
+    }
+    this.gameController.setRoomStatus("finished");
+    this.io.to(this.room.id).emit("game-stopped");
+  }
+
+  update() {
+    if (this.room.status !== "playing") return;
+
+    // Move all players
+    this.room.players.forEach((player) => {
+      if (player.alive) {
+        PlayerService.movePlayer(player);
+      }
+    });
+
+    // Check collisions
+    CollisionService.checkAllCollisions(this.room);
+
+    // Check food consumption
+    this.checkFoodConsumption();
+
+    // Spawn new food if needed
+    FoodService.spawnFood(this.room);
+
+    // Check game end condition
+    if (RoomService.getActivePlayers(this.room).length <= 1) {
+      this.endGame();
+      return;
+    }
+
+    // Emit game state
+    this.emitGameState();
+  }
+
+  checkFoodConsumption() {
+    this.room.players.forEach((player) => {
+      if (!player.alive) return;
+
+      this.room.foods.forEach((food) => {
+        if (FoodService.checkFoodCollision(player, food)) {
+          FoodService.consumeFood(player, food);
+          this.gameController.removeFood(food.id);
+        }
+      });
+    });
+  }
+
+  endGame() {
+    this.stop();
+    const activePlayers = RoomService.getActivePlayers(this.room);
+    const winner = activePlayers[0];
+
+    this.io.to(this.room.id).emit("game-ended", {
+      winner: winner ? winner.id : null,
+      scores: Array.from(this.room.players.values()).map((p) => ({
+        id: p.id,
+        name: p.name,
+        score: p.score,
+      })),
+    });
+  }
+
+  emitGameState() {
+    const gameState = {
+      players: RoomService.getPlayersData(this.room),
+      foods: RoomService.getFoodsData(this.room),
     };
 
-    player.position = newHead;
-    player.body.unshift(newHead);
-
-    if (player.body.length > player.length) {
-      player.body.pop();
-    }
-  }
-
-  changeDirection(playerId, newDirection) {
-    const player = this.room.players.get(playerId);
-    if (!player) return;
-
-    // TODO: kiểm tra newDirection hợp lệ (vd: không ngược chiều)
-    player.setDirection(newDirection);
-  }
-
-  playerEatFood(playerId, foodId) {
-    const player = this.room.players.get(playerId);
-    const food = this.room.foods.get(foodId);
-    if (!player || !food || !food.alive) return;
-
-    food.setAlive(false);
-    player.grow(1);
-  }
-
-  spawnFood() {
-    while (this.room.foods.size < this.room.config.foodCount) {
-      const id = uuidv4();
-      const position = this.randomPosition();
-      const food = new Food(id, position);
-      this.room.addFood(food);
-    }
-  }
-
-  randomPosition() {
-    const { width, height } = this.room.config;
-    return {
-      x: Math.floor(Math.random() * width),
-      y: Math.floor(Math.random() * height),
-    };
-  }
-
-  checkCollisions() {
-    // Kiểm tra player va chạm, rắn tự cắn mình, ăn food, chạm tường...
-    // Cập nhật trạng thái player.alive, điểm,...
-  }
-
-  resetGame() {
-    this.room.reset();
-    this.spawnFood();
+    this.io.to(this.room.id).emit("game-state", gameState);
   }
 }
 
