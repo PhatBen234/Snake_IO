@@ -21,7 +21,7 @@ class GameService {
       this.update();
     }, 1000 / 10); // 10 FPS
 
-    this.io.to(this.room.id).emit("game-started");
+    // this.io.to(this.room.id).emit("game-started");
   }
 
   stop() {

@@ -84,10 +84,10 @@
     "_active": true,
     "_components": [
       {
-        "__id__": 83
+        "__id__": 84
       },
       {
-        "__id__": 84
+        "__id__": 85
       }
     ],
     "_prefab": null,
@@ -251,7 +251,7 @@
         "__id__": 8
       }
     ],
-    "_active": false,
+    "_active": true,
     "_components": [],
     "_prefab": null,
     "_opacity": 255,
@@ -3957,6 +3957,9 @@
     "_components": [
       {
         "__id__": 82
+      },
+      {
+        "__id__": 83
       }
     ],
     "_prefab": null,
@@ -4015,6 +4018,16 @@
       "__id__": 81
     },
     "_enabled": true,
+    "_id": "67J9wuvSxORKp6xLLFG/38"
+  },
+  {
+    "__type__": "01cfc/lx8NG8oJ//Hlfhpy5",
+    "_name": "",
+    "_objFlags": 0,
+    "node": {
+      "__id__": 81
+    },
+    "_enabled": true,
     "joinPanel": {
       "__id__": 5
     },
@@ -4057,7 +4070,7 @@
     "leaveRoomBtn": {
       "__id__": 77
     },
-    "_id": "67J9wuvSxORKp6xLLFG/38"
+    "_id": "0cWPsR5LdBjJZ0lQaDk5QE"
   },
   {
     "__type__": "cc.Canvas",
