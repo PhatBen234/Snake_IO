@@ -87,10 +87,10 @@
     "_active": true,
     "_components": [
       {
-        "__id__": 76
+        "__id__": 77
       },
       {
-        "__id__": 77
+        "__id__": 78
       }
     ],
     "_prefab": null,
@@ -439,7 +439,7 @@
         "__id__": 10
       },
       {
-        "__id__": 71
+        "__id__": 72
       }
     ],
     "_active": true,
@@ -529,7 +529,11 @@
       }
     ],
     "_active": true,
-    "_components": [],
+    "_components": [
+      {
+        "__id__": 71
+      }
+    ],
     "_prefab": null,
     "_opacity": 255,
     "_color": {
@@ -3392,6 +3396,40 @@
     "_id": "a5BmADpKlMZ6OK6lsZsP9q"
   },
   {
+    "__type__": "9a685NgDphIXp4mHqqDmJGI",
+    "_name": "",
+    "_objFlags": 0,
+    "node": {
+      "__id__": 10
+    },
+    "_enabled": true,
+    "statusLabel": {
+      "__id__": 14
+    },
+    "playerIdLabel": {
+      "__id__": 16
+    },
+    "connectBtn": {
+      "__id__": 56
+    },
+    "disconnectBtn": {
+      "__id__": 63
+    },
+    "joinRoomBtn": {
+      "__id__": 70
+    },
+    "roomIdInput": {
+      "__id__": 38
+    },
+    "playerNameInput": {
+      "__id__": 49
+    },
+    "serverUrlInput": {
+      "__id__": 27
+    },
+    "_id": "04Lz/dtf9PAqyvShTF5Tuo"
+  },
+  {
     "__type__": "cc.Node",
     "_name": "ControlPanel",
     "_objFlags": 0,
@@ -3400,10 +3438,10 @@
     },
     "_children": [
       {
-        "__id__": 72
+        "__id__": 73
       },
       {
-        "__id__": 74
+        "__id__": 75
       }
     ],
     "_active": true,
@@ -3461,13 +3499,13 @@
     "_name": "Background",
     "_objFlags": 0,
     "_parent": {
-      "__id__": 71
+      "__id__": 72
     },
     "_children": [],
     "_active": true,
     "_components": [
       {
-        "__id__": 73
+        "__id__": 74
       }
     ],
     "_prefab": null,
@@ -3523,7 +3561,7 @@
     "_name": "",
     "_objFlags": 0,
     "node": {
-      "__id__": 72
+      "__id__": 73
     },
     "_enabled": true,
     "_materials": [
@@ -3555,13 +3593,13 @@
     "_name": "Title",
     "_objFlags": 0,
     "_parent": {
-      "__id__": 71
+      "__id__": 72
     },
     "_children": [],
     "_active": true,
     "_components": [
       {
-        "__id__": 75
+        "__id__": 76
       }
     ],
     "_prefab": null,
@@ -3617,7 +3655,7 @@
     "_name": "",
     "_objFlags": 0,
     "node": {
-      "__id__": 74
+      "__id__": 75
     },
     "_enabled": true,
     "_materials": [
