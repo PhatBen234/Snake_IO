@@ -68,34 +68,34 @@ export default class ConnectionUI extends cc.Component {
     this.updatePlayerIdLabel("Not connected");
     this.updateButtonStates();
   }
+// *Quân: Hàm này chưa được gọi ở đâu cả
+  // setTestClient(testClient) {
+  //   this.testClient = testClient;
+  //   console.log("🔗 Test client set:", !!testClient);
+  // }
 
-  setTestClient(testClient) {
-    this.testClient = testClient;
-    console.log("🔗 Test client set:", !!testClient);
-  }
+  // updateUI() {
+  //   if (!this.testClient) return;
 
-  updateUI() {
-    if (!this.testClient) return;
+  //   // Update connection status
+  //   const connected = this.testClient.socket?.connected || false;
 
-    // Update connection status
-    const connected = this.testClient.socket?.connected || false;
+  //   if (connected !== this.isConnected) {
+  //     this.isConnected = connected;
+  //     this.updateConnectionStatus(
+  //       connected ? "Connected" : "Disconnected",
+  //       connected ? cc.Color.GREEN : cc.Color.RED
+  //     );
 
-    if (connected !== this.isConnected) {
-      this.isConnected = connected;
-      this.updateConnectionStatus(
-        connected ? "Connected" : "Disconnected",
-        connected ? cc.Color.GREEN : cc.Color.RED
-      );
+  //     this.updatePlayerIdLabel(
+  //       connected
+  //         ? this.testClient.playerId?.substring(0, 12) || "Unknown"
+  //         : "Not connected"
+  //     );
 
-      this.updatePlayerIdLabel(
-        connected
-          ? this.testClient.playerId?.substring(0, 12) || "Unknown"
-          : "Not connected"
-      );
-
-      this.updateButtonStates();
-    }
-  }
+  //     this.updateButtonStates();
+  //   }
+  // }
 
   updateConnectionStatus(status, color) {
     if (this.statusLabel) {
