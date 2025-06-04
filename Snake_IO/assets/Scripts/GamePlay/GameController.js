@@ -241,37 +241,18 @@ export default class GameController extends cc.Component {
     if (!snakeNode) {
       snakeNode = this.createSnakeNode(player);
       this.playerSnakes.set(player.id, snakeNode);
+    } else {
+      const snakeScript = snakeNode.getComponent("Snake");
+      snakeScript.updateSnake(player);
     }
-
-    this.updateSnakePosition(snakeNode, player);
   }
 
   createSnakeNode(player) {
-    const snakeNode = new cc.Node(`Snake_${player.id}`);
+    const snakeNode = cc.instantiate(this.snakePrefab);
     snakeNode.parent = this.gameArea;
 
-    // Tạo các segment cho snake body
-    player.body.forEach((segment, index) => {
-      const segmentNode = new cc.Node(`Segment_${index}`);
-      segmentNode.parent = snakeNode;
-
-      // Add sprite component
-      const sprite = segmentNode.addComponent(cc.Sprite);
-
-      // Set color - head khác màu body
-      const color =
-        index === 0
-          ? this.getPlayerHeadColor(player.id)
-          : this.getPlayerBodyColor(player.id);
-      segmentNode.color = color;
-
-      // Set size
-      segmentNode.width = this.gridSize;
-      segmentNode.height = this.gridSize;
-
-      // Set position
-      segmentNode.setPosition(segment.x, segment.y);
-    });
+    const snakeScript = snakeNode.getComponent("Snake");
+    snakeScript.initializeSnake(player);
 
     return snakeNode;
   }
