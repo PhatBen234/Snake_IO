@@ -74,8 +74,14 @@ export default class RoomJoinUI extends cc.Component {
     });
 
     this.socketManager.on('game-started', () => {
-      this.uiController.updateStatus("Game đã bắt đầu!");
-      this.uiController.hideUI();
+      console.log("🚀 Game started! Loading game scene...");
+      this.uiController.updateStatus("Game đã bắt đầu! Đang tải...");
+      
+      // Lưu thông tin cần thiết vào global
+      this.saveGameData();
+      
+      // Load game scene
+      this.loadGameScene();
     });
 
     this.socketManager.on('room-full', () => {
@@ -207,9 +213,43 @@ export default class RoomJoinUI extends cc.Component {
     this.uiController.onCopyRoomIdClick(this.roomDataManager.getCurrentRoom());
   }
 
+  saveGameData() {
+    // Lưu thông tin cần thiết vào global để GameController sử dụng
+    window.gameSocket = this.socketManager.socket;
+    window.currentRoomId = this.roomDataManager.getCurrentRoom();
+    window.currentPlayerId = this.socketManager.getPlayerId();
+    window.roomData = this.roomDataManager.getRoomData();
+    
+    console.log("💾 Saved game data:", {
+      roomId: window.currentRoomId,
+      playerId: window.currentPlayerId,
+      hasSocket: !!window.gameSocket
+    });
+  }
+
+  loadGameScene() {
+    // Hide UI trước khi load scene
+    this.uiController.hideUI();
+    
+    // Load game scene sau một chút delay để đảm bảo data đã được save
+    setTimeout(() => {
+      console.log("🎮 Loading GameScene...");
+      cc.director.loadScene("GameScene", (err, scene) => {
+        if (err) {
+          console.error("❌ Failed to load GameScene:", err);
+          this.uiController.updateStatus("Lỗi khi tải game!");
+          this.uiController.showUI();
+        } else {
+          console.log("✅ GameScene loaded successfully");
+        }
+      });
+    }, 500);
+  }
+
   onDestroy() {
     if (this.socketManager) {
-      this.socketManager.disconnect();
+      // Không disconnect socket khi chuyển scene vì GameController cần dùng
+      console.log("🔄 Preserving socket connection for GameScene");
     }
   }
 }
