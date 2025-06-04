@@ -31,10 +31,6 @@ export default class GameController extends cc.Component {
   gameAreaHeight = 600;
   gridSize = 20;
 
-  // FIXED: Thêm flag để track game status
-  isGameActive = false;
-  keyboardEnabled = false;
-
   start() {
     console.log("🎮 Starting Game Controller");
 
@@ -58,17 +54,19 @@ export default class GameController extends cc.Component {
     console.log("🏠 Room ID:", this.currentRoom);
 
     this.setupSocketEvents();
+    this.setupKeyboardControls();
     this.initializeGame();
 
     // Đặt status ban đầu
     this.updateStatus("Đã sẵn sàng - Chờ bắt đầu game...");
 
-    // FIXED: Auto-start game với delay ngắn hơn
+    // FIXED: Auto-start game nếu là host (tạm thời để test)
     setTimeout(() => {
       this.autoStartGame();
-    }, 500);
+    }, 1000);
   }
 
+  // FIXED: Thêm function auto start để test
   autoStartGame() {
     if (!this.currentRoom || !this.socket) return;
 
@@ -92,16 +90,8 @@ export default class GameController extends cc.Component {
     // Game bắt đầu
     this.socket.on("game-started", (data) => {
       console.log("🚀 Game Started Event Received!", data);
-      this.isGameActive = true;
       this.updateStatus("Game đã bắt đầu!");
       this.startGameLoop();
-
-      // FIXED: Enable keyboard sau khi game bắt đầu
-      setTimeout(() => {
-        this.keyboardEnabled = true;
-        this.setupKeyboardControls();
-        console.log("⌨️ Keyboard controls enabled");
-      }, 1000);
     });
 
     // Cập nhật trạng thái game
@@ -114,8 +104,6 @@ export default class GameController extends cc.Component {
     // Game kết thúc
     this.socket.on("game-ended", (data) => {
       console.log("🏁 Game Ended:", data);
-      this.isGameActive = false;
-      this.keyboardEnabled = false;
       this.handleGameEnd(data);
     });
 
@@ -138,8 +126,6 @@ export default class GameController extends cc.Component {
     // Disconnect
     this.socket.on("disconnect", () => {
       console.log("🔌 Disconnected from server");
-      this.isGameActive = false;
-      this.keyboardEnabled = false;
       this.updateStatus("Mất kết nối server");
     });
 
@@ -147,73 +133,38 @@ export default class GameController extends cc.Component {
   }
 
   setupKeyboardControls() {
-    // FIXED: Chỉ setup keyboard controls một lần
-    if (this.keyboardSetup) return;
-    this.keyboardSetup = true;
-
-    console.log("⌨️ Setting up keyboard controls...");
-
     cc.systemEvent.on(
       cc.SystemEvent.EventType.KEY_DOWN,
       (event) => {
-        // FIXED: Kiểm tra game state trước khi xử lý input
-        if (
-          !this.keyboardEnabled ||
-          !this.isGameActive ||
-          !this.currentRoom ||
-          !this.gameState
-        ) {
-          console.log("🚫 Input blocked - Game not active or not ready");
-          return;
-        }
+        if (!this.currentRoom || !this.gameState) return;
 
         let direction = null;
-        let keyName = "";
 
         switch (event.keyCode) {
           case cc.macro.KEY.up:
-            direction = { x: 0, y: 1 };
-            keyName = "UP";
-            break;
           case cc.macro.KEY.w:
-            direction = { x: 0, y: 1 };
-            keyName = "W";
+            direction = { x: 0, y: -1 };
             break;
           case cc.macro.KEY.down:
-            direction = { x: 0, y: -1 };
-            keyName = "DOWN";
-            break;
           case cc.macro.KEY.s:
-            direction = { x: 0, y: -1 };
-            keyName = "S";
+            direction = { x: 0, y: 1 };
             break;
           case cc.macro.KEY.left:
-            direction = { x: -1, y: 0 };
-            keyName = "LEFT";
-            break;
           case cc.macro.KEY.a:
             direction = { x: -1, y: 0 };
-            keyName = "A";
             break;
           case cc.macro.KEY.right:
-            direction = { x: 1, y: 0 };
-            keyName = "RIGHT";
-            break;
           case cc.macro.KEY.d:
             direction = { x: 1, y: 0 };
-            keyName = "D";
             break;
         }
 
         if (direction) {
-          console.log(`🎮 Key pressed: ${keyName}, Direction:`, direction);
           this.sendPlayerMove(direction);
         }
       },
       this
     );
-
-    console.log("✅ Keyboard controls setup complete");
   }
 
   initializeGame() {
@@ -228,16 +179,10 @@ export default class GameController extends cc.Component {
     console.log("✅ Game initialized for room:", this.currentRoom);
   }
 
+  // FIXED: Thêm function để start game loop
   startGameLoop() {
     console.log("🔄 Starting game loop...");
-
-    // FIXED: Request initial game state
-    if (this.socket && this.currentRoom) {
-      this.socket.emit("get-game-state", {
-        roomId: this.currentRoom,
-        playerId: this.playerId,
-      });
-    }
+    // Có thể thêm logic để request game state định kỳ nếu cần
   }
 
   setupGameArea() {
@@ -252,14 +197,12 @@ export default class GameController extends cc.Component {
     if (background) {
       background.node.color = cc.Color.BLACK;
     }
-
-    console.log("🎯 Game area setup complete");
   }
 
   updateGameDisplay(state) {
     if (!state) return;
 
-    console.log("🔄 Updating game display...", state);
+    console.log("🔄 Updating game display...");
 
     // Update players
     if (state.players) {
@@ -278,7 +221,6 @@ export default class GameController extends cc.Component {
 
       if (!myPlayer.alive) {
         this.updateStatus("Bạn đã chết!");
-        this.keyboardEnabled = false; // Disable controls khi chết
       }
     }
   }
@@ -305,30 +247,61 @@ export default class GameController extends cc.Component {
   }
 
   createSnakeNode(player) {
-    const snakeNode = cc.instantiate(this.snakePrefab);
+    const snakeNode = new cc.Node(`Snake_${player.id}`);
     snakeNode.parent = this.gameArea;
 
-    // Đảm bảo Snake component tồn tại
-    let snakeScript = snakeNode.getComponent("Snake");
-    if (!snakeScript) {
-      snakeScript = snakeNode.addComponent("Snake");
-    }
+    // Tạo các segment cho snake body
+    player.body.forEach((segment, index) => {
+      const segmentNode = new cc.Node(`Segment_${index}`);
+      segmentNode.parent = snakeNode;
 
-    // Khởi tạo snake với dữ liệu player
-    snakeScript.initSnake(player.id, player);
+      // Add sprite component
+      const sprite = segmentNode.addComponent(cc.Sprite);
 
-    console.log(`🐍 Created snake node for player: ${player.id}`);
+      // Set color - head khác màu body
+      const color =
+        index === 0
+          ? this.getPlayerHeadColor(player.id)
+          : this.getPlayerBodyColor(player.id);
+      segmentNode.color = color;
+
+      // Set size
+      segmentNode.width = this.gridSize;
+      segmentNode.height = this.gridSize;
+
+      // Set position
+      segmentNode.setPosition(segment.x, segment.y);
+    });
+
     return snakeNode;
   }
 
   updateSnakePosition(snakeNode, player) {
-    // FIXED: Sử dụng Snake component thay vì tạo segments trực tiếp
-    const snakeScript = snakeNode.getComponent("Snake");
-    if (snakeScript) {
-      snakeScript.updateSnake(player);
-    } else {
-      console.error("❌ Snake script not found on snake node");
-    }
+    // Remove old segments
+    snakeNode.removeAllChildren();
+
+    // Create new segments
+    player.body.forEach((segment, index) => {
+      const segmentNode = new cc.Node(`Segment_${index}`);
+      segmentNode.parent = snakeNode;
+
+      // Add sprite component
+      const sprite = segmentNode.addComponent(cc.Sprite);
+
+      // Set color
+      const color =
+        index === 0
+          ? this.getPlayerHeadColor(player.id)
+          : this.getPlayerBodyColor(player.id);
+      segmentNode.color = color;
+
+      // Set size
+      segmentNode.width = this.gridSize;
+      segmentNode.height = this.gridSize;
+
+      // Set position
+      segmentNode.setPosition(segment.x, segment.y);
+    });
   }
 
   removePlayerSnake(playerId) {
@@ -365,36 +338,32 @@ export default class GameController extends cc.Component {
       this.foodNodes.set(food.id, foodNode);
     }
 
-    // Update position - FIXED: Convert coordinates
-    const screenPos = this.gameToScreenPosition(food.position);
-    foodNode.setPosition(screenPos.x, screenPos.y);
+    // Update position
+    foodNode.setPosition(food.position.x, food.position.y);
   }
 
   createFoodNode(food) {
-    const foodNode = cc.instantiate(this.foodPrefab);
+    const foodNode = new cc.Node(`Food_${food.id}`);
     foodNode.parent = this.gameArea;
 
-    const foodScript = foodNode.getComponent("Food");
-    foodScript.initFood(food.id, food);
+    // Add sprite component
+    const sprite = foodNode.addComponent(cc.Sprite);
+
+    // Set color (red for food)
+    foodNode.color = cc.Color.RED;
+
+    // Set size
+    foodNode.width = this.gridSize;
+    foodNode.height = this.gridSize;
+
+    // Set position
+    foodNode.setPosition(food.position.x, food.position.y);
 
     return foodNode;
   }
 
-  // FIXED: Thêm function convert game coordinates to screen coordinates
-  gameToScreenPosition(gamePos) {
-    // Assuming game coordinates start from (0,0) at top-left
-    // Convert to Cocos2d coordinates (center-based)
-    const screenX = gamePos.x - this.gameAreaWidth / 2;
-    const screenY = this.gameAreaHeight / 2 - gamePos.y;
-
-    return { x: screenX, y: screenY };
-  }
-
   sendPlayerMove(direction) {
-    if (!this.currentRoom || !this.isGameActive) {
-      console.log("🚫 Cannot send move - game not active");
-      return;
-    }
+    if (!this.currentRoom) return;
 
     console.log("🎮 Sending move:", direction);
     this.socket.emit("player-move", {
@@ -402,9 +371,6 @@ export default class GameController extends cc.Component {
       playerId: this.playerId,
       direction: direction,
     });
-
-    // FIXED: Show feedback to user
-    this.updateStatus(`Moving: ${direction.x}, ${direction.y}`);
   }
 
   updateScore(score) {
@@ -425,10 +391,10 @@ export default class GameController extends cc.Component {
       `Game kết thúc! ${data.winner ? `Người thắng: ${data.winner}` : "Hòa"}`
     );
 
-    // FIXED: Extend delay to see the result
+    // Show game end UI after delay
     setTimeout(() => {
       this.showGameEndOptions();
-    }, 5000);
+    }, 3000);
   }
 
   showGameEndOptions() {
@@ -481,10 +447,6 @@ export default class GameController extends cc.Component {
   onDestroy() {
     console.log("🧹 Cleaning up GameController...");
 
-    // Disable game
-    this.isGameActive = false;
-    this.keyboardEnabled = false;
-
     // Clean up
     this.clearGameObjects();
 
@@ -499,8 +461,6 @@ export default class GameController extends cc.Component {
       // DON'T disconnect socket here - leave it for other scenes
     }
 
-    if (this.keyboardSetup) {
-      cc.systemEvent.off(cc.SystemEvent.EventType.KEY_DOWN, this);
-    }
+    cc.systemEvent.off(cc.SystemEvent.EventType.KEY_DOWN);
   }
 }

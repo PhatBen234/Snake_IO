@@ -17,7 +17,7 @@
         "__id__": 2
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [],
     "_prefab": null,
     "_opacity": 255,
@@ -307,7 +307,7 @@
     },
     "_enabled": true,
     "snakePrefab": {
-      "__uuid__": "aaa88149-c3cc-4da8-86fc-d6c15b5048b6"
+      "__uuid__": "651d01b4-aca9-49fc-97c9-5c77e1690727"
     },
     "foodPrefab": {
       "__uuid__": "176ac72f-937c-428b-9cb1-809241b78c83"
