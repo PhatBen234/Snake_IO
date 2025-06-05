@@ -10,18 +10,26 @@ export default class SceneManager extends cc.Component {
       this.node.destroy();
       return;
     }
-    
+
     SceneManager.instance = this;
     cc.game.addPersistRootNode(this.node);
-    
+
     console.log("🎬 SceneManager initialized");
     this.setupSceneEvents();
   }
 
   setupSceneEvents() {
     // Listen for scene loading events
-    cc.director.on(cc.Director.EVENT_BEFORE_SCENE_LOADING, this.onBeforeSceneLoad, this);
-    cc.director.on(cc.Director.EVENT_AFTER_SCENE_LAUNCH, this.onAfterSceneLoad, this);
+    cc.director.on(
+      cc.Director.EVENT_BEFORE_SCENE_LOADING,
+      this.onBeforeSceneLoad,
+      this
+    );
+    cc.director.on(
+      cc.Director.EVENT_AFTER_SCENE_LAUNCH,
+      this.onAfterSceneLoad,
+      this
+    );
   }
 
   onBeforeSceneLoad(sceneName) {
@@ -32,7 +40,7 @@ export default class SceneManager extends cc.Component {
   onAfterSceneLoad(sceneName) {
     console.log("✅ Scene loaded:", sceneName);
     this.hideLoadingScreen();
-    
+
     // Handle post-load setup
     this.handleSceneLoaded(sceneName);
   }
@@ -42,7 +50,7 @@ export default class SceneManager extends cc.Component {
       case "GameScene":
         this.onGameSceneLoaded();
         break;
-      case "LobbyScene":
+      case "JoinRoom":
         this.onLobbySceneLoaded();
         break;
       case "MenuScene":
@@ -53,7 +61,7 @@ export default class SceneManager extends cc.Component {
 
   onGameSceneLoaded() {
     console.log("🎮 Game scene loaded, checking game data...");
-    
+
     // Verify required data exists
     if (!window.gameSocket || !window.currentRoomId) {
       console.error("❌ Missing game data, returning to lobby");
@@ -66,14 +74,14 @@ export default class SceneManager extends cc.Component {
 
   onLobbySceneLoaded() {
     console.log("🏠 Lobby scene loaded");
-    
+
     // Clean up game data if returning from game
     this.cleanupGameData();
   }
 
   onMenuSceneLoaded() {
     console.log("📋 Menu scene loaded");
-    
+
     // Complete cleanup when returning to menu
     this.fullCleanup();
   }
@@ -82,13 +90,13 @@ export default class SceneManager extends cc.Component {
     // Create simple loading overlay
     const loadingNode = new cc.Node("LoadingScreen");
     loadingNode.parent = cc.director.getScene();
-    
+
     // Add background
     const bg = loadingNode.addComponent(cc.Sprite);
     loadingNode.color = new cc.Color(0, 0, 0, 180);
     loadingNode.width = cc.winSize.width;
     loadingNode.height = cc.winSize.height;
-    
+
     // Add loading text
     const textNode = new cc.Node("LoadingText");
     textNode.parent = loadingNode;
@@ -96,7 +104,7 @@ export default class SceneManager extends cc.Component {
     label.string = "Đang tải...";
     label.fontSize = 24;
     label.node.color = cc.Color.WHITE;
-    
+
     // Store reference for cleanup
     this.loadingScreen = loadingNode;
   }
@@ -120,7 +128,7 @@ export default class SceneManager extends cc.Component {
   }
 
   loadLobbyScene() {
-    cc.director.loadScene("LobbyScene");
+    cc.director.loadScene("JoinRoom");
   }
 
   loadMenuScene() {
@@ -133,7 +141,7 @@ export default class SceneManager extends cc.Component {
     window.currentRoomId = roomDataManager.getCurrentRoom();
     window.currentPlayerId = socketManager.getPlayerId();
     window.roomData = roomDataManager.getRoomData();
-    
+
     console.log("💾 Game data saved for scene transition");
   }
 
@@ -142,7 +150,7 @@ export default class SceneManager extends cc.Component {
     if (window.gameSocket && window.gameSocket.connected) {
       console.log("🔄 Keeping socket connection active");
     }
-    
+
     // Clear room-specific data
     window.currentRoomId = null;
     window.roomData = null;
@@ -154,11 +162,11 @@ export default class SceneManager extends cc.Component {
       window.gameSocket.disconnect();
       window.gameSocket = null;
     }
-    
+
     window.currentRoomId = null;
     window.currentPlayerId = null;
     window.roomData = null;
-    
+
     console.log("🧹 Full cleanup completed");
   }
 
@@ -172,50 +180,66 @@ export default class SceneManager extends cc.Component {
   }
 
   isInLobby() {
-    return this.getCurrentScene() === "LobbyScene";
+    return this.getCurrentScene() === "JoinRoom";
   }
 
   // Game flow helpers
   returnToLobbyFromGame() {
     console.log("🔙 Returning to lobby from game");
-    
+
     // Send leave game event if still connected
-    if (window.gameSocket && window.gameSocket.connected && window.currentRoomId) {
+    if (
+      window.gameSocket &&
+      window.gameSocket.connected &&
+      window.currentRoomId
+    ) {
       window.gameSocket.emit("leave-game", {
         roomId: window.currentRoomId,
-        playerId: window.currentPlayerId
+        playerId: window.currentPlayerId,
       });
     }
-    
+
     this.loadLobbyScene();
   }
 
   quitToMenu() {
     console.log("🚪 Quitting to menu");
-    
+
     // Send appropriate leave events
-    if (window.gameSocket && window.gameSocket.connected && window.currentRoomId) {
+    if (
+      window.gameSocket &&
+      window.gameSocket.connected &&
+      window.currentRoomId
+    ) {
       if (this.isInGame()) {
         window.gameSocket.emit("leave-game", {
           roomId: window.currentRoomId,
-          playerId: window.currentPlayerId
+          playerId: window.currentPlayerId,
         });
       }
-      
+
       window.gameSocket.emit("leave-room", {
         roomId: window.currentRoomId,
-        playerId: window.currentPlayerId
+        playerId: window.currentPlayerId,
       });
     }
-    
+
     this.loadMenuScene();
   }
 
   onDestroy() {
     // Clean up event listeners
-    cc.director.off(cc.Director.EVENT_BEFORE_SCENE_LOADING, this.onBeforeSceneLoad, this);
-    cc.director.off(cc.Director.EVENT_AFTER_SCENE_LAUNCH, this.onAfterSceneLoad, this);
-    
+    cc.director.off(
+      cc.Director.EVENT_BEFORE_SCENE_LOADING,
+      this.onBeforeSceneLoad,
+      this
+    );
+    cc.director.off(
+      cc.Director.EVENT_AFTER_SCENE_LAUNCH,
+      this.onAfterSceneLoad,
+      this
+    );
+
     if (this.loadingScreen) {
       this.loadingScreen.destroy();
     }

@@ -45,7 +45,7 @@ export default class Food extends cc.Component {
 
     console.log(`🍎 Initializing food: ${foodId}`, foodData);
 
-    // Set vị trí food
+    // FIXED: Sử dụng unified position system
     this.updatePosition(foodData.position);
 
     // Set kích thước
@@ -74,12 +74,30 @@ export default class Food extends cc.Component {
     this.updateVisibility(foodData.alive);
   }
 
-  // Cập nhật vị trí food
+  // FIXED: Sử dụng CÙNG coordinate system với Snake
   updatePosition(position) {
     if (!position) return;
 
-    const screenPos = this.gameToScreenPosition(position);
-    this.node.setPosition(screenPos.x, screenPos.y);
+    // Sử dụng CÙNG conversion logic như Snake.gridToWorldPosition()
+    const worldPos = this.serverToWorldPosition(position);
+    this.node.setPosition(worldPos.x, worldPos.y);
+
+    console.log(`🍎 Food ${this.foodId} positioned:`);
+    console.log(`  Server: (${position.x}, ${position.y})`);
+    console.log(`  World: (${worldPos.x}, ${worldPos.y})`);
+  }
+
+  // FIXED: Thống nhất với Snake coordinate system
+  serverToWorldPosition(serverPos) {
+    // CÙNG logic như Snake.gridToWorldPosition()
+    const canvasWidth = 960;
+    const canvasHeight = 640;
+
+    // Convert từ server position sang world position trong canvas
+    const worldX = serverPos.x - canvasWidth / 2;
+    const worldY = canvasHeight / 2 - serverPos.y; // Flip Y axis
+
+    return { x: worldX, y: worldY };
   }
 
   // Set kích thước food
@@ -166,17 +184,6 @@ export default class Food extends cc.Component {
       this.fruitImage.stopAction(this.glowAction);
       this.glowAction = null;
     }
-  }
-
-  // Convert game coordinates to screen coordinates
-  gameToScreenPosition(gamePos) {
-    const gameAreaWidth = 800;
-    const gameAreaHeight = 600;
-
-    const screenX = gamePos.x - gameAreaWidth / 2;
-    const screenY = gameAreaHeight / 2 - gamePos.y;
-
-    return { x: screenX, y: screenY };
   }
 
   // Cập nhật trạng thái hiển thị

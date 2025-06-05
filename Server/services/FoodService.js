@@ -8,27 +8,28 @@ class FoodService {
       const id = uuidv4();
       const position = this.getRandomPosition(room.config);
       const food = new Food(id, position);
-      room.foods.set(food.id, food); // Trực tiếp thêm vào room
+      room.foods.set(food.id, food);
     }
   }
 
   static getRandomPosition(config) {
     const { width, height } = config;
-    return {
-      x: Math.floor(Math.random() * (width - 20)) + 10,
-      y: Math.floor(Math.random() * (height - 20)) + 10,
-    };
+    const x = Math.floor(Math.random() * (width - 40)) + 20;
+    const y = Math.floor(Math.random() * (height - 40)) + 20;
+    return { x, y };
   }
 
   static checkFoodCollision(player, food) {
-    if (!food.alive) return false;
+    if (!food.alive || !player.body || player.body.length === 0) return false;
 
+    const headPosition = player.body[0];
     const distance = Math.sqrt(
-      Math.pow(player.position.x - food.position.x, 2) +
-        Math.pow(player.position.y - food.position.y, 2)
+      Math.pow(headPosition.x - food.position.x, 2) +
+        Math.pow(headPosition.y - food.position.y, 2)
     );
 
-    return distance < 15; // Collision threshold
+    const collisionThreshold = 15;
+    return distance < collisionThreshold;
   }
 
   static consumeFood(player, food) {

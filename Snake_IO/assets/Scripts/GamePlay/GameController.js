@@ -31,8 +31,14 @@ export default class GameController extends cc.Component {
   gameAreaHeight = 640;
   gridSize = 20;
 
+  // FIXED: Add game status flag
+  isGameActive = false;
+
   start() {
     console.log("🎮 Starting Game Controller");
+
+    // FIXED: Reset game state khi start
+    this.resetGameState();
 
     // FIXED: Đảm bảo socket connection được preserve
     this.socket = window.gameSocket;
@@ -66,6 +72,22 @@ export default class GameController extends cc.Component {
     }, 1000);
   }
 
+  // FIXED: Reset game state method
+  resetGameState() {
+    console.log("🔄 Resetting game state...");
+
+    this.gameState = null;
+    this.isGameActive = false;
+
+    // Clear existing game objects
+    this.clearGameObjects();
+
+    // Reset score
+    if (this.scoreLabel) {
+      this.scoreLabel.string = "Score: 0";
+    }
+  }
+
   // FIXED: Thêm function auto start để test
   autoStartGame() {
     if (!this.currentRoom || !this.socket) return;
@@ -90,6 +112,7 @@ export default class GameController extends cc.Component {
     // Game bắt đầu
     this.socket.on("game-started", (data) => {
       console.log("🚀 Game Started Event Received!", data);
+      this.isGameActive = true; // FIXED: Set game active
       this.updateStatus("Game đã bắt đầu!");
       this.startGameLoop();
     });
@@ -97,13 +120,18 @@ export default class GameController extends cc.Component {
     // Cập nhật trạng thái game
     this.socket.on("game-state", (state) => {
       console.log("🎯 Game State Update:", state);
-      this.gameState = state;
-      this.updateGameDisplay(state);
+
+      // FIXED: Only update if game is active
+      if (this.isGameActive) {
+        this.gameState = state;
+        this.updateGameDisplay(state);
+      }
     });
 
     // Game kết thúc
     this.socket.on("game-ended", (data) => {
       console.log("🏁 Game Ended:", data);
+      this.isGameActive = false; // FIXED: Set game inactive
       this.handleGameEnd(data);
     });
 
@@ -136,7 +164,8 @@ export default class GameController extends cc.Component {
     cc.systemEvent.on(
       cc.SystemEvent.EventType.KEY_DOWN,
       (event) => {
-        if (!this.currentRoom || !this.gameState) return;
+        // FIXED: Only allow input when game is active
+        if (!this.currentRoom || !this.gameState || !this.isGameActive) return;
 
         let direction = null;
 
@@ -182,7 +211,8 @@ export default class GameController extends cc.Component {
   // FIXED: Thêm function để start game loop
   startGameLoop() {
     console.log("🔄 Starting game loop...");
-    // Có thể thêm logic để request game state định kỳ nếu cần
+    // FIXED: Clear any existing game objects when starting new game
+    this.clearGameObjects();
   }
 
   setupGameArea() {
@@ -200,7 +230,7 @@ export default class GameController extends cc.Component {
   }
 
   updateGameDisplay(state) {
-    if (!state) return;
+    if (!state || !this.isGameActive) return; // FIXED: Check if game is active
 
     console.log("🔄 Updating game display...");
 
@@ -293,12 +323,27 @@ export default class GameController extends cc.Component {
     }
   }
 
+  // FIXED: Sử dụng food prefab thay vì tạo thủ công
   updateFoods(foods) {
+    console.log("🍎 Updating foods:", foods);
+
     // Remove dead foods
     this.foodNodes.forEach((foodNode, foodId) => {
       const food = foods.find((f) => f.id === foodId);
       if (!food || !food.alive) {
-        foodNode.destroy();
+        console.log(`🗑️ Removing dead food: ${foodId}`);
+        const foodScript = foodNode.getComponent("Food");
+        if (foodScript) {
+          foodScript.onEaten(); // Trigger eat effect
+        }
+
+        // Delay destroy để effect chạy xong
+        setTimeout(() => {
+          if (foodNode && foodNode.isValid) {
+            foodNode.destroy();
+          }
+        }, 500);
+
         this.foodNodes.delete(foodId);
       }
     });
@@ -311,40 +356,74 @@ export default class GameController extends cc.Component {
     });
   }
 
+  // FIXED: Sử dụng food prefab và component
   updateFood(food) {
     let foodNode = this.foodNodes.get(food.id);
 
     if (!foodNode) {
+      // Tạo food từ prefab
       foodNode = this.createFoodNode(food);
       this.foodNodes.set(food.id, foodNode);
+    } else {
+      // Update existing food
+      const foodScript = foodNode.getComponent("Food");
+      if (foodScript) {
+        foodScript.updateFood(food);
+      }
     }
-
-    // Update position
-    foodNode.setPosition(food.position.x, food.position.y);
   }
 
+  // FIXED: Tạo food từ prefab với position system thống nhất
   createFoodNode(food) {
-    const foodNode = new cc.Node(`Food_${food.id}`);
+    if (!this.foodPrefab) {
+      console.error("❌ Food prefab not assigned!");
+      return null;
+    }
+
+    console.log(`🍎 Creating food node for ID: ${food.id}`, food);
+
+    // Instantiate từ prefab
+    const foodNode = cc.instantiate(this.foodPrefab);
     foodNode.parent = this.gameArea;
+    foodNode.name = `Food_${food.id}`;
 
-    // Add sprite component
-    const sprite = foodNode.addComponent(cc.Sprite);
+    // Get Food component và initialize
+    const foodScript = foodNode.getComponent("Food");
+    if (foodScript) {
+      // Food component sẽ tự handle position conversion
+      foodScript.initFood(food.id, food);
+    } else {
+      console.error("❌ Food component not found on prefab!");
 
-    // Set color (red for food)
-    foodNode.color = cc.Color.RED;
+      // Fallback: tạo food đơn giản với unified position
+      foodNode.color = cc.Color.RED;
+      foodNode.width = this.gridSize;
+      foodNode.height = this.gridSize;
 
-    // Set size
-    foodNode.width = this.gridSize;
-    foodNode.height = this.gridSize;
-
-    // Set position
-    foodNode.setPosition(food.position.x, food.position.y);
+      // Sử dụng cùng logic position như Snake
+      const worldPos = this.unifiedServerToWorld(food.position);
+      foodNode.setPosition(worldPos.x, worldPos.y);
+    }
 
     return foodNode;
   }
 
+  unifiedServerToWorld(serverPos) {
+    // Logic GIỐNG HỆT như Snake.gridToWorldPosition()
+    const canvasWidth = 960;
+    const canvasHeight = 640;
+
+    const worldX = serverPos.x - canvasWidth / 2;
+    const worldY = canvasHeight / 2 - serverPos.y; // Flip Y axis
+
+    console.log(
+      `🔄 Unified Server(${serverPos.x}, ${serverPos.y}) -> World(${worldX}, ${worldY})`
+    );
+    return { x: worldX, y: worldY };
+  }
+
   sendPlayerMove(direction) {
-    if (!this.currentRoom) return;
+    if (!this.currentRoom || !this.isGameActive) return; // FIXED: Check if game is active
 
     console.log("🎮 Sending move:", direction);
     this.socket.emit("player-move", {
@@ -368,9 +447,17 @@ export default class GameController extends cc.Component {
   }
 
   handleGameEnd(data) {
+    // FIXED: Set game inactive and clear state
+    this.isGameActive = false;
+
     this.updateStatus(
       `Game kết thúc! ${data.winner ? `Người thắng: ${data.winner}` : "Hòa"}`
     );
+
+    // FIXED: Clear game objects immediately when game ends
+    setTimeout(() => {
+      this.clearGameObjects();
+    }, 1000);
 
     // Show game end UI after delay
     setTimeout(() => {
@@ -379,6 +466,9 @@ export default class GameController extends cc.Component {
   }
 
   showGameEndOptions() {
+    // FIXED: Reset window.currentRoomId before loading lobby
+    window.currentRoomId = null;
+
     // Load về lobby scene hoặc show retry options
     cc.director.loadScene("LobbyScene");
   }
@@ -416,17 +506,30 @@ export default class GameController extends cc.Component {
   }
 
   clearGameObjects() {
+    console.log("🧹 Clearing all game objects...");
+
     // Clear all snakes
-    this.playerSnakes.forEach((snake) => snake.destroy());
+    this.playerSnakes.forEach((snake) => {
+      if (snake && snake.isValid) {
+        snake.destroy();
+      }
+    });
     this.playerSnakes.clear();
 
     // Clear all foods
-    this.foodNodes.forEach((food) => food.destroy());
+    this.foodNodes.forEach((food) => {
+      if (food && food.isValid) {
+        food.destroy();
+      }
+    });
     this.foodNodes.clear();
   }
 
   onDestroy() {
     console.log("🧹 Cleaning up GameController...");
+
+    // FIXED: Set game inactive
+    this.isGameActive = false;
 
     // Clean up
     this.clearGameObjects();

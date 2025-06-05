@@ -41,6 +41,7 @@ export default class GameUIController extends cc.Component {
   currentScore = 0;
   gameTime = 0;
   playerCount = 0;
+  alivePlayers = []; // Danh sách người chơi còn sống
 
   onLoad() {
     this.setupButtons();
@@ -151,6 +152,63 @@ export default class GameUIController extends cc.Component {
     }
   }
 
+  // Player management methods
+  updateAlivePlayers(players) {
+    this.alivePlayers = players || [];
+    console.log("👥 Alive players:", this.alivePlayers);
+
+    // Kiểm tra điều kiện thắng
+    this.checkWinCondition();
+  }
+
+  checkWinCondition() {
+    // Chỉ kiểm tra khi có ít nhất 2 người chơi ban đầu
+    if (this.playerCount < 2) return;
+
+    // Nếu chỉ còn 1 người sống
+    if (this.alivePlayers.length === 1) {
+      const winner = this.alivePlayers[0];
+      this.declareWinner(winner);
+    }
+    // Nếu không còn ai sống (hòa)
+    else if (this.alivePlayers.length === 0) {
+      this.declareDraw();
+    }
+  }
+
+  declareWinner(winner) {
+    console.log("🎉 Winner declared:", winner);
+
+    // Gửi kết quả về server
+    this.emitGameEvent("game-winner", {
+      winner: winner.id,
+      winnerName: winner.name,
+      gameTime: this.gameTime,
+      finalScore: this.currentScore,
+    });
+
+    // Hiển thị kết quả
+    const result = {
+      winner: winner.id,
+      winnerName: winner.name,
+    };
+
+    this.onGameEnd(result);
+  }
+
+  declareDraw() {
+    console.log("🤝 Game ended in draw");
+
+    // Gửi kết quả về server
+    this.emitGameEvent("game-draw", {
+      gameTime: this.gameTime,
+      finalScore: this.currentScore,
+    });
+
+    // Hiển thị kết quả
+    this.onGameEnd({ winner: null });
+  }
+
   // Game state management
   onGameStart() {
     this.updateStatus("Game đã bắt đầu!");
@@ -176,15 +234,46 @@ export default class GameUIController extends cc.Component {
       if (result.winner === window.currentPlayerId) {
         this.updateStatus("Bạn thắng!");
       } else {
-        this.updateStatus(`${result.winnerName} thắng!`);
+        // Sử dụng winnerName thay vì winner ID
+        const displayName = result.winnerName || result.winner;
+        this.updateStatus(`${displayName} thắng!`);
       }
     } else {
-      this.updateStatus("Game kết thúc!");
+      this.updateStatus("Game kết thúc - Hòa!");
     }
   }
 
-  onPlayerDeath() {
-    this.updateStatus("Bạn đã chết! Quan sát các player khác...");
+  onPlayerDeath(playerId) {
+    // Cập nhật danh sách người chơi còn sống
+    this.alivePlayers = this.alivePlayers.filter(
+      (player) => player.id !== playerId
+    );
+
+    if (playerId === window.currentPlayerId) {
+      this.updateStatus("Bạn đã chết! Quan sát các player khác...");
+    } else {
+      // Tìm tên người chơi
+      const deadPlayer = this.getPlayerById(playerId);
+      const playerName = deadPlayer ? deadPlayer.name : playerId;
+      this.updateStatus(`${playerName} đã bị loại!`);
+    }
+
+    console.log(
+      `💀 Player ${playerId} died. Remaining: ${this.alivePlayers.length}`
+    );
+
+    // Kiểm tra điều kiện thắng
+    this.checkWinCondition();
+  }
+
+  // Helper method to get player info by ID
+  getPlayerById(playerId) {
+    // Bạn có thể lưu danh sách tất cả người chơi ở đây
+    // hoặc lấy từ một GameManager khác
+    if (window.allPlayers) {
+      return window.allPlayers.find((player) => player.id === playerId);
+    }
+    return null;
   }
 
   // Panel management
@@ -211,9 +300,9 @@ export default class GameUIController extends cc.Component {
           if (result.winner === window.currentPlayerId) {
             gameOverMessage += "🎉 Bạn đã thắng!";
           } else {
-            gameOverMessage += `👑 ${
-              result.winnerName || result.winner
-            } thắng!`;
+            // Ưu tiên hiển thị winnerName thay vì winner ID
+            const displayName = result.winnerName || result.winner;
+            gameOverMessage += `👑 ${displayName} thắng!`;
           }
         } else {
           gameOverMessage += "🤝 Hòa!";

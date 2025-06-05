@@ -174,15 +174,22 @@ export default class Snake extends cc.Component {
 
   // Clear all segments
   clearSegments() {
+    if (!this.segments || !this.segments.length) {
+      return;
+    }
+
+    // Destroy individual segments first
     this.segments.forEach((segment) => {
-      if (segment && segment.isValid) {
+      if (segment && cc.isValid(segment)) {
         segment.destroy();
       }
     });
     this.segments = [];
 
-    // Also clear all children
-    this.node.removeAllChildren();
+    // Only clear children if node is still valid and has children property
+    if (this.node && cc.isValid(this.node) && this.node.children) {
+      this.node.removeAllChildren();
+    }
   }
 
   // Get player head color
@@ -234,6 +241,24 @@ export default class Snake extends cc.Component {
 
   onDestroy() {
     console.log("🐍 Snake component destroyed for player:", this.playerId);
-    this.clearSegments();
+
+    // Clear segments safely
+    try {
+      if (this.segments && this.segments.length > 0) {
+        // Only destroy individual segments, don't touch the node
+        this.segments.forEach((segment) => {
+          if (segment && cc.isValid(segment)) {
+            segment.destroy();
+          }
+        });
+      }
+    } catch (error) {
+      console.warn("🐍 Error clearing segments:", error);
+    }
+
+    // Clear references
+    this.segments = null;
+    this.playerId = null;
+    this.playerData = null;
   }
 }
