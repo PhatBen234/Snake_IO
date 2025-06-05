@@ -236,6 +236,12 @@
       "__id__": 1
     },
     "_enabled": true,
+    "fruitImage": {
+      "__id__": 2
+    },
+    "animation": {
+      "__id__": 4
+    },
     "_id": ""
   },
   {

@@ -27,8 +27,8 @@ export default class GameController extends cc.Component {
   foodNodes = new Map();
 
   // Game settings
-  gameAreaWidth = 800;
-  gameAreaHeight = 600;
+  gameAreaWidth = 960;
+  gameAreaHeight = 640;
   gridSize = 20;
 
   start() {
@@ -188,7 +188,7 @@ export default class GameController extends cc.Component {
   setupGameArea() {
     if (!this.gameArea) return;
 
-    // Set game area size
+    // Set game area size - sẽ dùng giá trị mới 960x640
     this.gameArea.width = this.gameAreaWidth;
     this.gameArea.height = this.gameAreaHeight;
 

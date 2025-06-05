@@ -130,14 +130,13 @@ export default class Snake extends cc.Component {
 
   // Convert grid position to world position
   gridToWorldPosition(gridPos) {
-    // FIXED: Đơn giản hóa conversion - chỉ scale theo gridSize
-    // Server gửi tọa độ pixel, chỉ cần center trong game area
-    const gameAreaWidth = 800;
-    const gameAreaHeight = 600;
+    // FIXED: Cập nhật kích thước canvas mới 960x640
+    const canvasWidth = 960;
+    const canvasHeight = 640;
 
-    // Convert từ server position sang local position trong game area
-    const worldX = gridPos.x - gameAreaWidth / 2;
-    const worldY = gameAreaHeight / 2 - gridPos.y; // Flip Y axis
+    // Convert từ server position sang local position trong canvas
+    const worldX = gridPos.x - canvasWidth / 2;
+    const worldY = canvasHeight / 2 - gridPos.y; // Flip Y axis
 
     console.log(
       `🔄 Grid(${gridPos.x}, ${gridPos.y}) -> World(${worldX}, ${worldY})`

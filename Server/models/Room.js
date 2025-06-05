@@ -6,8 +6,8 @@ class Room {
     this.status = "waiting"; // waiting, playing, finished
     this.maxPlayers = maxPlayers;
     this.config = {
-      width: 800,
-      height: 600,
+      width: 960,
+      height: 640,
       speed: 5,
       foodCount: 10,
     };
