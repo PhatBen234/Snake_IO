@@ -2,194 +2,220 @@ const { ccclass, property } = cc._decorator;
 
 @ccclass
 export default class Snake extends cc.Component {
-  @property(cc.Sprite)
-  headSprite = null;
-
-  // Snake data
+  // Player info
   playerId = null;
-  body = [];
-  direction = { x: 1, y: 0 };
-  isAlive = true;
+  playerData = null;
 
-  // Visual settings
+  // Snake segments
+  segments = [];
   gridSize = 20;
-  headColor = cc.Color.GREEN;
-  bodyColor = cc.Color.WHITE;
 
-  // Body segments (nodes)
-  bodySegments = [];
-
-  onLoad() {
-    console.log("🐍 Snake component loaded");
-
-    // Tự động tìm head sprite nếu chưa được assign
-    if (!this.headSprite) {
-      this.headSprite = this.getComponentInChildren(cc.Sprite);
-    }
-
-    // Set initial head properties
-    if (this.headSprite) {
-      this.headSprite.node.width = this.gridSize;
-      this.headSprite.node.height = this.gridSize;
-      this.headSprite.node.color = this.headColor;
-    }
+  start() {
+    console.log("🐍 Snake component started");
   }
 
-  // Initialize snake với data từ server
+  // Initialize snake with player data
   initializeSnake(playerData) {
+    console.log("🐍 Initializing snake for player:", playerData.id);
+
     this.playerId = playerData.id;
-    this.body = [...playerData.body];
-    this.isAlive = playerData.alive;
+    this.playerData = playerData;
 
-    // Set màu sắc riêng cho từng player
-    this.setPlayerColors(this.playerId);
+    // Clear existing segments
+    this.clearSegments();
 
-    // Update visual
-    this.updateSnakeVisual();
-
-    console.log(`🐍 Snake initialized for player: ${this.playerId}`);
+    // Create snake body based on player data
+    this.createSnakeBody(playerData);
   }
 
-  // Update snake position và body
+  // Update snake with new player data
   updateSnake(playerData) {
-    if (!this.isAlive) return;
-
-    this.body = [...playerData.body];
-    this.isAlive = playerData.alive;
-
-    if (!this.isAlive) {
-      this.handleDeath();
+    if (!playerData || !playerData.alive) {
+      console.log("🐍 Player not alive, hiding snake");
+      this.node.active = false;
       return;
     }
 
-    this.updateSnakeVisual();
+    console.log(
+      "🐍 Updating snake for player:",
+      playerData.id,
+      "Body length:",
+      playerData.body?.length
+    );
+
+    this.playerData = playerData;
+    this.node.active = true;
+
+    // Update snake position and body
+    this.updateSnakeBody(playerData);
   }
 
-  // Update visual representation của snake
-  updateSnakeVisual() {
-    if (!this.body || this.body.length === 0) return;
+  // Create initial snake body
+  createSnakeBody(playerData) {
+    if (!playerData.body || playerData.body.length === 0) {
+      console.warn("🐍 No body data for snake");
+      return;
+    }
 
-    // Update head position (segment đầu tiên)
-    const headPos = this.body[0];
-    this.node.setPosition(headPos.x, headPos.y);
-
-    // Update body segments
-    this.updateBodySegments();
+    playerData.body.forEach((segment, index) => {
+      this.createSegment(segment, index);
+    });
   }
 
-  // Tạo và update các body segments
-  updateBodySegments() {
-    // Remove excess segments
-    while (this.bodySegments.length >= this.body.length) {
-      const segment = this.bodySegments.pop();
-      if (segment && cc.isValid(segment)) {
-        segment.destroy();
-      }
+  // Update snake body positions
+  updateSnakeBody(playerData) {
+    if (!playerData.body || playerData.body.length === 0) {
+      console.warn("🐍 No body data to update");
+      return;
     }
 
-    // Create new segments if needed
-    while (this.bodySegments.length < this.body.length - 1) {
-      this.createBodySegment();
-    }
+    // Clear old segments
+    this.clearSegments();
 
-    // Update positions (bỏ qua segment đầu tiên vì đó là head)
-    for (let i = 1; i < this.body.length; i++) {
-      const segment = this.bodySegments[i - 1];
-      const pos = this.body[i];
-
-      if (segment && cc.isValid(segment)) {
-        segment.setPosition(pos.x, pos.y);
-      }
-    }
+    // Create new segments with updated positions
+    playerData.body.forEach((segment, index) => {
+      this.createSegment(segment, index);
+    });
   }
 
-  // Tạo một body segment mới
-  createBodySegment() {
-    const segmentNode = new cc.Node("BodySegment");
-    segmentNode.parent = this.node.parent; // Cùng parent với snake head
+  // Create a single segment
+  createSegment(segmentData, index) {
+    const segmentNode = new cc.Node(`Segment_${index}`);
+    segmentNode.parent = this.node;
 
     // Add sprite component
     const sprite = segmentNode.addComponent(cc.Sprite);
 
-    // Set properties
+    // FIXED: Sử dụng ColorSprite thay vì texture để đảm bảo hiển thị
+    const spriteFrame = this.getDefaultSpriteFrame();
+    if (spriteFrame) {
+      sprite.spriteFrame = spriteFrame;
+    }
+
+    // ALTERNATIVE: Nếu không có sprite frame, dùng Graphics component
+    if (!spriteFrame) {
+      segmentNode.removeComponent(cc.Sprite);
+      const graphics = segmentNode.addComponent(cc.Graphics);
+      graphics.fillColor = cc.Color.WHITE;
+      graphics.rect(
+        -this.gridSize / 2,
+        -this.gridSize / 2,
+        this.gridSize,
+        this.gridSize
+      );
+      graphics.fill();
+    }
+
+    // Set color based on head or body
+    const isHead = index === 0;
+    segmentNode.color = isHead
+      ? this.getPlayerHeadColor(this.playerId)
+      : this.getPlayerBodyColor(this.playerId);
+
+    // Set size
     segmentNode.width = this.gridSize;
     segmentNode.height = this.gridSize;
-    segmentNode.color = this.bodyColor;
 
-    // Add to segments array
-    this.bodySegments.push(segmentNode);
+    // Set position - Convert from grid coordinates to world coordinates
+    const worldPos = this.gridToWorldPosition(segmentData);
+    segmentNode.setPosition(worldPos.x, worldPos.y);
 
-    return segmentNode;
+    // Store segment reference
+    this.segments.push(segmentNode);
+
+    console.log(
+      `🐍 Created segment ${index} at grid(${segmentData.x}, ${segmentData.y}) -> world(${worldPos.x}, ${worldPos.y})`
+    );
   }
 
-  // Set màu sắc cho player
-  setPlayerColors(playerId) {
-    const colors = [
-      { head: cc.Color.GREEN, body: new cc.Color(0, 200, 0) },
-      { head: cc.Color.BLUE, body: new cc.Color(0, 0, 200) },
-      { head: cc.Color.YELLOW, body: new cc.Color(200, 200, 0) },
-      { head: cc.Color.MAGENTA, body: new cc.Color(200, 0, 200) },
-      { head: cc.Color.CYAN, body: new cc.Color(0, 200, 200) },
-      { head: cc.Color.RED, body: new cc.Color(200, 0, 0) },
-    ];
+  // Convert grid position to world position
+  gridToWorldPosition(gridPos) {
+    // FIXED: Đơn giản hóa conversion - chỉ scale theo gridSize
+    // Server gửi tọa độ pixel, chỉ cần center trong game area
+    const gameAreaWidth = 800;
+    const gameAreaHeight = 600;
 
-    const hash = this.hashCode(playerId);
-    const colorSet = colors[Math.abs(hash) % colors.length];
+    // Convert từ server position sang local position trong game area
+    const worldX = gridPos.x - gameAreaWidth / 2;
+    const worldY = gameAreaHeight / 2 - gridPos.y; // Flip Y axis
 
-    this.headColor = colorSet.head;
-    this.bodyColor = colorSet.body;
+    console.log(
+      `🔄 Grid(${gridPos.x}, ${gridPos.y}) -> World(${worldX}, ${worldY})`
+    );
+    return { x: worldX, y: worldY };
+  }
 
-    // Apply to head sprite
-    if (this.headSprite) {
-      this.headSprite.node.color = this.headColor;
+  // Get default white square sprite frame
+  getDefaultSpriteFrame() {
+    // FIXED: Sử dụng built-in default sprite thay vì tự tạo texture
+    try {
+      // Cố gắng lấy default sprite frame từ engine
+      const defaultSpriteFrame = new cc.SpriteFrame();
+
+      // Tạo texture đơn giản
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 32;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, 32, 32);
+
+      const img = new Image();
+      img.src = canvas.toDataURL();
+
+      const texture = new cc.Texture2D();
+      texture.initWithElement(img);
+      defaultSpriteFrame.setTexture(texture);
+
+      return defaultSpriteFrame;
+    } catch (error) {
+      console.warn("🐍 Could not create sprite frame:", error);
+      return null;
     }
   }
 
-  // Handle khi snake chết
-  handleDeath() {
-    this.isAlive = false;
-    console.log(`💀 Snake ${this.playerId} died`);
-
-    // Có thể add effect chết ở đây
-    this.node.opacity = 128; // Làm mờ snake
-
-    // Schedule destroy after delay
-    this.scheduleOnce(() => {
-      this.destroySnake();
-    }, 1.0);
-  }
-
-  // Destroy snake và cleanup
-  destroySnake() {
-    console.log(`🧹 Destroying snake ${this.playerId}`);
-
-    // Destroy all body segments
-    this.bodySegments.forEach((segment) => {
-      if (segment && cc.isValid(segment)) {
+  // Clear all segments
+  clearSegments() {
+    this.segments.forEach((segment) => {
+      if (segment && segment.isValid) {
         segment.destroy();
       }
     });
-    this.bodySegments = [];
+    this.segments = [];
 
-    // Destroy main node
-    if (cc.isValid(this.node)) {
-      this.node.destroy();
-    }
+    // Also clear all children
+    this.node.removeAllChildren();
   }
 
-  // Get snake length
-  getLength() {
-    return this.body ? this.body.length : 0;
+  // Get player head color
+  getPlayerHeadColor(playerId) {
+    const colors = [
+      cc.Color.GREEN,
+      cc.Color.BLUE,
+      cc.Color.YELLOW,
+      cc.Color.MAGENTA,
+      cc.Color.CYAN,
+      cc.Color.ORANGE,
+    ];
+    const hash = this.hashCode(playerId);
+    return colors[Math.abs(hash) % colors.length];
   }
 
-  // Check if position is part of snake body
-  isPositionInBody(x, y) {
-    return this.body.some((segment) => segment.x === x && segment.y === y);
+  // Get player body color (darker than head)
+  getPlayerBodyColor(playerId) {
+    const headColor = this.getPlayerHeadColor(playerId);
+    return new cc.Color(
+      Math.floor(headColor.r * 0.7),
+      Math.floor(headColor.g * 0.7),
+      Math.floor(headColor.b * 0.7),
+      255
+    );
   }
 
-  // Hash function để tạo màu consistent
+  // Hash function for consistent colors
   hashCode(str) {
     let hash = 0;
+    if (!str) return hash;
+
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = (hash << 5) - hash + char;
@@ -198,16 +224,17 @@ export default class Snake extends cc.Component {
     return hash;
   }
 
-  // Cleanup khi component bị destroy
-  onDestroy() {
-    console.log(`🧹 Snake component destroyed for player: ${this.playerId}`);
+  // Debug: Log current snake state
+  logSnakeState() {
+    console.log("🐍 Snake State:");
+    console.log("  Player ID:", this.playerId);
+    console.log("  Segments:", this.segments.length);
+    console.log("  Active:", this.node.active);
+    console.log("  Position:", this.node.getPosition());
+  }
 
-    // Clean up body segments
-    this.bodySegments.forEach((segment) => {
-      if (segment && cc.isValid(segment)) {
-        segment.destroy();
-      }
-    });
-    this.bodySegments = [];
+  onDestroy() {
+    console.log("🐍 Snake component destroyed for player:", this.playerId);
+    this.clearSegments();
   }
 }
