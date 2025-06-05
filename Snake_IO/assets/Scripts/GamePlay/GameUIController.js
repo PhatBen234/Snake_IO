@@ -470,7 +470,7 @@ export default class GameUIController extends cc.Component {
     if (SceneManager.getInstance()) {
       SceneManager.returnToLobby();
     } else {
-      cc.director.loadScene("LobbyScene");
+      cc.director.loadScene("JoinRoom");
     }
   }
 

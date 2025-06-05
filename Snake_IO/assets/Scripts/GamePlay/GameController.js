@@ -47,7 +47,7 @@ export default class GameController extends cc.Component {
       console.error("❌ No valid socket connection found!");
       this.updateStatus("Lỗi kết nối - Quay về lobby...");
       setTimeout(() => {
-        cc.director.loadScene("LobbyScene");
+        cc.director.loadScene("JoinRoom");
       }, 2000);
       return;
     }
@@ -470,7 +470,7 @@ export default class GameController extends cc.Component {
     window.currentRoomId = null;
 
     // Load về lobby scene hoặc show retry options
-    cc.director.loadScene("LobbyScene");
+    cc.director.loadScene("JoinRoom");
   }
 
   getPlayerHeadColor(playerId) {
