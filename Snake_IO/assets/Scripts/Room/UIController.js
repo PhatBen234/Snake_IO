@@ -31,6 +31,9 @@ export default class UIController extends cc.Component {
   @property(cc.Label)
   roomIdCopyLabel = null;
 
+  @property(cc.Button)
+  copyRoomIdBtn = null; // Thêm nút copy
+
   @property(cc.Label)
   playersCountLabel = null;
 
@@ -47,6 +50,7 @@ export default class UIController extends cc.Component {
   leaveRoomBtn = null;
 
   callbacks = {};
+  currentRoomId = ""; // Lưu room ID hiện tại
 
   onLoad() {
     this.setupUI();
@@ -68,6 +72,11 @@ export default class UIController extends cc.Component {
     }
     if (this.leaveRoomBtn) {
       this.leaveRoomBtn.node.on("click", this.onLeaveRoomClick, this);
+    }
+
+    // Thêm event cho nút copy
+    if (this.copyRoomIdBtn) {
+      this.copyRoomIdBtn.node.on("click", this.onCopyRoomIdClick, this);
     }
   }
 
@@ -96,6 +105,9 @@ export default class UIController extends cc.Component {
   updateRoomInfo(roomId, roomData, isHost, playerId) {
     if (!roomData) return;
 
+    // Lưu room ID để dùng cho copy
+    this.currentRoomId = roomId;
+
     if (this.roomInfoLabel) {
       this.roomInfoLabel.string = `Phòng: ${roomId}`;
     }
@@ -112,6 +124,11 @@ export default class UIController extends cc.Component {
 
     this.updateStartGameButton(isHost, roomData);
     this.updatePlayersList(roomData, playerId);
+
+    // Hiển thị nút copy khi có room ID
+    if (this.copyRoomIdBtn) {
+      this.copyRoomIdBtn.node.active = !!roomId;
+    }
   }
 
   updateStartGameButton(isHost, roomData) {
@@ -219,16 +236,51 @@ export default class UIController extends cc.Component {
     this.triggerCallback("leaveRoom");
   }
 
-  onCopyRoomIdClick(roomId) {
-    if (roomId) {
-      if (navigator && navigator.clipboard) {
-        navigator.clipboard.writeText(roomId);
-        this.updateStatus("Đã copy Room ID!");
-      } else {
-        console.log("Room ID to copy:", roomId);
-        this.updateStatus(`Room ID: ${roomId}`);
-      }
+  onCopyRoomIdClick() {
+    const roomId = this.currentRoomId;
+
+    if (!roomId) {
+      this.updateStatus("Không có Room ID để copy!");
+      return;
     }
+
+    // Thử copy bằng clipboard API
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard
+        .writeText(roomId)
+        .then(() => {
+          this.updateStatus(`✅ Đã copy Room ID: ${roomId}`);
+        })
+        .catch((err) => {
+          console.error("Failed to copy: ", err);
+          this.fallbackCopy(roomId);
+        });
+    } else {
+      // Fallback cho các trường hợp không support clipboard API
+      this.fallbackCopy(roomId);
+    }
+  }
+
+  fallbackCopy(roomId) {
+    // Tạo một textarea ẩn để copy
+    const textArea = document.createElement("textarea");
+    textArea.value = roomId;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      document.execCommand("copy");
+      this.updateStatus(`✅ Đã copy Room ID: ${roomId}`);
+    } catch (err) {
+      console.error("Fallback copy failed: ", err);
+      this.updateStatus(`Room ID: ${roomId} (Không thể copy tự động)`);
+    }
+
+    document.body.removeChild(textArea);
   }
 
   on(event, callback) {
