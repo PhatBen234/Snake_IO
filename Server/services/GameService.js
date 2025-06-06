@@ -77,12 +77,18 @@ class GameService {
 
   endGame() {
     this.stop();
-    const activePlayers = RoomService.getActivePlayers(this.room);
-    const winner = activePlayers[0];
+
+    // Get all players (both alive and dead) to find the highest score
+    const allPlayers = Array.from(this.room.players.values());
+
+    // Find the player with the highest score
+    const winner = allPlayers.reduce((prev, current) => {
+      return prev.score > current.score ? prev : current;
+    });
 
     this.io.to(this.room.id).emit("game-ended", {
-      winner: winner ? winner.id : null,
-      scores: Array.from(this.room.players.values()).map((p) => ({
+      winner: winner ? winner.name : null, // Changed from winner.id to winner.name
+      scores: allPlayers.map((p) => ({
         id: p.id,
         name: p.name,
         score: p.score,
