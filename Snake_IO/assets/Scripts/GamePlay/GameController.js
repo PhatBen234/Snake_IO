@@ -25,8 +25,8 @@ export default class GameController extends cc.Component {
   playerSnakes = new Map();
   foodNodes = new Map();
 
-  gameAreaWidth = 960;
-  gameAreaHeight = 640;
+  canvasWidth = 960;
+  canvasHeight = 640;
   gridSize = 20;
 
   isGameActive = false;
@@ -74,8 +74,8 @@ export default class GameController extends cc.Component {
   setupGameArea() {
     if (!this.gameArea) return;
 
-    this.gameArea.width = this.gameAreaWidth;
-    this.gameArea.height = this.gameAreaHeight;
+    this.gameArea.width = this.canvasWidth;
+    this.gameArea.height = this.canvasHeight;
 
     const background = this.gameArea.getComponent(cc.Sprite);
     if (background) {
@@ -288,16 +288,16 @@ export default class GameController extends cc.Component {
       foodNode.width = this.gridSize;
       foodNode.height = this.gridSize;
 
-      const worldPos = this.serverToWorldPosition(food.position);
+      const worldPos = this.gridToWorldPosition(food.position);
       foodNode.setPosition(worldPos.x, worldPos.y);
     }
 
     return foodNode;
   }
 
-  serverToWorldPosition(serverPos) {
-    const worldX = serverPos.x - this.gameAreaWidth / 2;
-    const worldY = this.gameAreaHeight / 2 - serverPos.y;
+  gridToWorldPosition(gridPos) {
+    const worldX = gridPos.x - this.canvasWidth / 2;
+    const worldY = this.canvasHeight / 2 - gridPos.y;
     return { x: worldX, y: worldY };
   }
 
