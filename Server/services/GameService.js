@@ -52,11 +52,18 @@ class GameService {
     // Spawn new food if needed
     FoodService.spawnFood(this.room);
 
-    // Check game end condition
-    if (RoomService.getActivePlayers(this.room).length <= 1) {
+    // FIXED: Chỉ kết thúc khi còn 0 players hoặc all players dead
+    const activePlayers = RoomService.getActivePlayers(this.room);
+    if (activePlayers.length === 0) {
       this.endGame();
       return;
     }
+
+    // Hoặc nếu muốn kết thúc khi chỉ còn 1 winner:
+    // if (activePlayers.length === 1 && this.room.players.size > 1) {
+    //   this.endGame();
+    //   return;
+    // }
 
     // Emit game state
     this.emitGameState();

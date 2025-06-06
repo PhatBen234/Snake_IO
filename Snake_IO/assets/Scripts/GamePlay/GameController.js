@@ -22,172 +22,114 @@ export default class GameController extends cc.Component {
   currentRoom = null;
   gameState = null;
 
-  // Game objects
   playerSnakes = new Map();
   foodNodes = new Map();
 
-  // Game settings
-  gameAreaWidth = 960;
-  gameAreaHeight = 640;
+  canvasWidth = 960;
+  canvasHeight = 640;
   gridSize = 20;
 
-  // FIXED: Add game status flag
   isGameActive = false;
+  isInitialized = false;
 
   start() {
-    console.log("🎮 Starting Game Controller");
-
-    // FIXED: Reset game state khi start
     this.resetGameState();
+    this.initialize();
+  }
 
-    // FIXED: Đảm bảo socket connection được preserve
+  async initialize() {
+    try {
+      this.setupSocket();
+      this.setupGameArea();
+      this.setupKeyboardControls();
+      this.setupSocketEvents();
+
+      this.isInitialized = true;
+      this.updateStatus("Đã sẵn sàng - Chờ bắt đầu game...");
+
+      setTimeout(() => this.autoStartGame(), 1000);
+    } catch (error) {
+      this.updateStatus("Lỗi khởi tạo - Quay về lobby...");
+      setTimeout(() => cc.director.loadScene("JoinRoom"), 2000);
+    }
+  }
+
+  setupSocket() {
     this.socket = window.gameSocket;
 
-    if (!this.socket || !this.socket.connected) {
-      console.error("❌ No valid socket connection found!");
+    if (!this.socket?.connected) {
       this.updateStatus("Lỗi kết nối - Quay về lobby...");
-      setTimeout(() => {
-        cc.director.loadScene("JoinRoom");
-      }, 2000);
-      return;
+      setTimeout(() => cc.director.loadScene("JoinRoom"), 2000);
+      throw new Error("No socket connection");
     }
 
     this.playerId = this.socket.id;
     this.currentRoom = window.currentRoomId;
 
-    console.log("🔗 Socket connected:", this.socket.connected);
-    console.log("👤 Player ID:", this.playerId);
-    console.log("🏠 Room ID:", this.currentRoom);
-
-    this.setupSocketEvents();
-    this.setupKeyboardControls();
-    this.initializeGame();
-
-    // Đặt status ban đầu
-    this.updateStatus("Đã sẵn sàng - Chờ bắt đầu game...");
-
-    // FIXED: Auto-start game nếu là host (tạm thời để test)
-    setTimeout(() => {
-      this.autoStartGame();
-    }, 1000);
-  }
-
-  // FIXED: Reset game state method
-  resetGameState() {
-    console.log("🔄 Resetting game state...");
-
-    this.gameState = null;
-    this.isGameActive = false;
-
-    // Clear existing game objects
-    this.clearGameObjects();
-
-    // Reset score
-    if (this.scoreLabel) {
-      this.scoreLabel.string = "Score: 0";
+    if (!this.playerId || !this.currentRoom) {
+      throw new Error("Missing player ID or room ID");
     }
   }
 
-  // FIXED: Thêm function auto start để test
-  autoStartGame() {
-    if (!this.currentRoom || !this.socket) return;
+  setupGameArea() {
+    if (!this.gameArea) return;
 
-    console.log("🚀 Auto starting game...");
-    this.socket.emit("start-game", {
-      roomId: this.currentRoom,
-      playerId: this.playerId,
-    });
+    this.gameArea.width = this.canvasWidth;
+    this.gameArea.height = this.canvasHeight;
+
+    const background = this.gameArea.getComponent(cc.Sprite);
+    if (background) {
+      background.node.color = cc.Color.BLACK;
+    }
   }
 
   setupSocketEvents() {
-    console.log("📡 Setting up socket events...");
+    // Clear existing listeners
+    [
+      "game-started",
+      "game-state",
+      "game-ended",
+      "player-joined",
+      "player-left",
+      "start-game-failed",
+    ].forEach((event) => this.socket.off(event));
 
-    // FIXED: Clear existing listeners trước
-    this.socket.off("game-started");
-    this.socket.off("game-state");
-    this.socket.off("game-ended");
-    this.socket.off("player-joined");
-    this.socket.off("player-left");
-
-    // Game bắt đầu
     this.socket.on("game-started", (data) => {
-      console.log("🚀 Game Started Event Received!", data);
-      this.isGameActive = true; // FIXED: Set game active
-      this.updateStatus("Game đã bắt đầu!");
-      this.startGameLoop();
+      if (this.isInitialized) {
+        this.isGameActive = true;
+        this.updateStatus("Game đã bắt đầu!");
+        this.clearGameObjects();
+      }
     });
 
-    // Cập nhật trạng thái game
     this.socket.on("game-state", (state) => {
-      console.log("🎯 Game State Update:", state);
-
-      // FIXED: Only update if game is active
-      if (this.isGameActive) {
+      if (this.isInitialized && this.isGameActive && state) {
         this.gameState = state;
         this.updateGameDisplay(state);
       }
     });
 
-    // Game kết thúc
     this.socket.on("game-ended", (data) => {
-      console.log("🏁 Game Ended:", data);
-      this.isGameActive = false; // FIXED: Set game inactive
+      this.isGameActive = false;
       this.handleGameEnd(data);
     });
 
-    // Player events
-    this.socket.on("player-joined", (data) => {
-      console.log("👥 Player joined:", data);
-    });
-
     this.socket.on("player-left", (data) => {
-      console.log("👋 Player left:", data);
       this.removePlayerSnake(data.playerId);
     });
 
-    // Start game failed
     this.socket.on("start-game-failed", (data) => {
-      console.log("❌ Start game failed:", data);
       this.updateStatus(`Không thể bắt đầu: ${data.reason}`);
     });
-
-    // Disconnect
-    this.socket.on("disconnect", () => {
-      console.log("🔌 Disconnected from server");
-      this.updateStatus("Mất kết nối server");
-    });
-
-    console.log("✅ Socket events setup complete");
   }
 
   setupKeyboardControls() {
     cc.systemEvent.on(
       cc.SystemEvent.EventType.KEY_DOWN,
       (event) => {
-        // FIXED: Only allow input when game is active
-        if (!this.currentRoom || !this.gameState || !this.isGameActive) return;
+        if (!this.canProcessInput()) return;
 
-        let direction = null;
-
-        switch (event.keyCode) {
-          case cc.macro.KEY.up:
-          case cc.macro.KEY.w:
-            direction = { x: 0, y: -1 };
-            break;
-          case cc.macro.KEY.down:
-          case cc.macro.KEY.s:
-            direction = { x: 0, y: 1 };
-            break;
-          case cc.macro.KEY.left:
-          case cc.macro.KEY.a:
-            direction = { x: -1, y: 0 };
-            break;
-          case cc.macro.KEY.right:
-          case cc.macro.KEY.d:
-            direction = { x: 1, y: 0 };
-            break;
-        }
-
+        const direction = this.getDirectionFromKey(event.keyCode);
         if (direction) {
           this.sendPlayerMove(direction);
         }
@@ -196,59 +138,50 @@ export default class GameController extends cc.Component {
     );
   }
 
-  initializeGame() {
-    console.log("🎮 Initializing game...");
-
-    // Clear existing game objects
-    this.clearGameObjects();
-
-    // Setup game area
-    this.setupGameArea();
-
-    console.log("✅ Game initialized for room:", this.currentRoom);
+  canProcessInput() {
+    return (
+      this.isInitialized &&
+      this.isGameActive &&
+      this.currentRoom &&
+      this.gameState
+    );
   }
 
-  // FIXED: Thêm function để start game loop
-  startGameLoop() {
-    console.log("🔄 Starting game loop...");
-    // FIXED: Clear any existing game objects when starting new game
-    this.clearGameObjects();
+  getDirectionFromKey(keyCode) {
+    const directions = {
+      [cc.macro.KEY.up]: { x: 0, y: -1 },
+      [cc.macro.KEY.w]: { x: 0, y: -1 },
+      [cc.macro.KEY.down]: { x: 0, y: 1 },
+      [cc.macro.KEY.s]: { x: 0, y: 1 },
+      [cc.macro.KEY.left]: { x: -1, y: 0 },
+      [cc.macro.KEY.a]: { x: -1, y: 0 },
+      [cc.macro.KEY.right]: { x: 1, y: 0 },
+      [cc.macro.KEY.d]: { x: 1, y: 0 },
+    };
+    return directions[keyCode];
   }
 
-  setupGameArea() {
-    if (!this.gameArea) return;
-
-    // Set game area size - sẽ dùng giá trị mới 960x640
-    this.gameArea.width = this.gameAreaWidth;
-    this.gameArea.height = this.gameAreaHeight;
-
-    // Set background color
-    const background = this.gameArea.getComponent(cc.Sprite);
-    if (background) {
-      background.node.color = cc.Color.BLACK;
+  autoStartGame() {
+    if (this.isInitialized && this.currentRoom && this.socket) {
+      this.socket.emit("start-game", {
+        roomId: this.currentRoom,
+        playerId: this.playerId,
+      });
     }
   }
 
   updateGameDisplay(state) {
-    if (!state || !this.isGameActive) return; // FIXED: Check if game is active
-
-    console.log("🔄 Updating game display...");
-
-    // Update players
     if (state.players) {
       this.updatePlayers(state.players);
     }
 
-    // Update foods
     if (state.foods) {
       this.updateFoods(state.foods);
     }
 
-    // Update score cho player hiện tại
     const myPlayer = state.players?.find((p) => p.id === this.playerId);
     if (myPlayer) {
       this.updateScore(myPlayer.score);
-
       if (!myPlayer.alive) {
         this.updateStatus("Bạn đã chết!");
       }
@@ -270,76 +203,45 @@ export default class GameController extends cc.Component {
 
     if (!snakeNode) {
       snakeNode = this.createSnakeNode(player);
-      this.playerSnakes.set(player.id, snakeNode);
+      if (snakeNode) {
+        this.playerSnakes.set(player.id, snakeNode);
+      }
     } else {
       const snakeScript = snakeNode.getComponent("Snake");
-      snakeScript.updateSnake(player);
+      snakeScript?.updateSnake(player);
     }
   }
 
   createSnakeNode(player) {
+    if (!this.snakePrefab) return null;
+
     const snakeNode = cc.instantiate(this.snakePrefab);
     snakeNode.parent = this.gameArea;
 
     const snakeScript = snakeNode.getComponent("Snake");
-    snakeScript.initializeSnake(player);
+    snakeScript?.initializeSnake(player);
 
     return snakeNode;
   }
 
-  updateSnakePosition(snakeNode, player) {
-    // Remove old segments
-    snakeNode.removeAllChildren();
-
-    // Create new segments
-    player.body.forEach((segment, index) => {
-      const segmentNode = new cc.Node(`Segment_${index}`);
-      segmentNode.parent = snakeNode;
-
-      // Add sprite component
-      const sprite = segmentNode.addComponent(cc.Sprite);
-
-      // Set color
-      const color =
-        index === 0
-          ? this.getPlayerHeadColor(player.id)
-          : this.getPlayerBodyColor(player.id);
-      segmentNode.color = color;
-
-      // Set size
-      segmentNode.width = this.gridSize;
-      segmentNode.height = this.gridSize;
-
-      // Set position
-      segmentNode.setPosition(segment.x, segment.y);
-    });
-  }
-
   removePlayerSnake(playerId) {
     const snakeNode = this.playerSnakes.get(playerId);
-    if (snakeNode) {
+    if (snakeNode?.isValid) {
       snakeNode.destroy();
       this.playerSnakes.delete(playerId);
     }
   }
 
-  // FIXED: Sử dụng food prefab thay vì tạo thủ công
   updateFoods(foods) {
-    console.log("🍎 Updating foods:", foods);
-
     // Remove dead foods
     this.foodNodes.forEach((foodNode, foodId) => {
       const food = foods.find((f) => f.id === foodId);
-      if (!food || !food.alive) {
-        console.log(`🗑️ Removing dead food: ${foodId}`);
+      if (!food?.alive) {
         const foodScript = foodNode.getComponent("Food");
-        if (foodScript) {
-          foodScript.onEaten(); // Trigger eat effect
-        }
+        foodScript?.onEaten();
 
-        // Delay destroy để effect chạy xong
         setTimeout(() => {
-          if (foodNode && foodNode.isValid) {
+          if (foodNode?.isValid) {
             foodNode.destroy();
           }
         }, 500);
@@ -356,81 +258,57 @@ export default class GameController extends cc.Component {
     });
   }
 
-  // FIXED: Sử dụng food prefab và component
   updateFood(food) {
     let foodNode = this.foodNodes.get(food.id);
 
     if (!foodNode) {
-      // Tạo food từ prefab
       foodNode = this.createFoodNode(food);
-      this.foodNodes.set(food.id, foodNode);
-    } else {
-      // Update existing food
-      const foodScript = foodNode.getComponent("Food");
-      if (foodScript) {
-        foodScript.updateFood(food);
+      if (foodNode) {
+        this.foodNodes.set(food.id, foodNode);
       }
+    } else {
+      const foodScript = foodNode.getComponent("Food");
+      foodScript?.updateFood(food);
     }
   }
 
-  // FIXED: Tạo food từ prefab với position system thống nhất
   createFoodNode(food) {
-    if (!this.foodPrefab) {
-      console.error("❌ Food prefab not assigned!");
-      return null;
-    }
+    if (!this.foodPrefab) return null;
 
-    console.log(`🍎 Creating food node for ID: ${food.id}`, food);
-
-    // Instantiate từ prefab
     const foodNode = cc.instantiate(this.foodPrefab);
     foodNode.parent = this.gameArea;
     foodNode.name = `Food_${food.id}`;
 
-    // Get Food component và initialize
     const foodScript = foodNode.getComponent("Food");
     if (foodScript) {
-      // Food component sẽ tự handle position conversion
       foodScript.initFood(food.id, food);
     } else {
-      console.error("❌ Food component not found on prefab!");
-
-      // Fallback: tạo food đơn giản với unified position
+      // Fallback
       foodNode.color = cc.Color.RED;
       foodNode.width = this.gridSize;
       foodNode.height = this.gridSize;
 
-      // Sử dụng cùng logic position như Snake
-      const worldPos = this.unifiedServerToWorld(food.position);
+      const worldPos = this.gridToWorldPosition(food.position);
       foodNode.setPosition(worldPos.x, worldPos.y);
     }
 
     return foodNode;
   }
 
-  unifiedServerToWorld(serverPos) {
-    // Logic GIỐNG HỆT như Snake.gridToWorldPosition()
-    const canvasWidth = 960;
-    const canvasHeight = 640;
-
-    const worldX = serverPos.x - canvasWidth / 2;
-    const worldY = canvasHeight / 2 - serverPos.y; // Flip Y axis
-
-    console.log(
-      `🔄 Unified Server(${serverPos.x}, ${serverPos.y}) -> World(${worldX}, ${worldY})`
-    );
+  gridToWorldPosition(gridPos) {
+    const worldX = gridPos.x - this.canvasWidth / 2;
+    const worldY = this.canvasHeight / 2 - gridPos.y;
     return { x: worldX, y: worldY };
   }
 
   sendPlayerMove(direction) {
-    if (!this.currentRoom || !this.isGameActive) return; // FIXED: Check if game is active
-
-    console.log("🎮 Sending move:", direction);
-    this.socket.emit("player-move", {
-      roomId: this.currentRoom,
-      playerId: this.playerId,
-      direction: direction,
-    });
+    if (this.canProcessInput()) {
+      this.socket.emit("player-move", {
+        roomId: this.currentRoom,
+        playerId: this.playerId,
+        direction: direction,
+      });
+    }
   }
 
   updateScore(score) {
@@ -443,106 +321,82 @@ export default class GameController extends cc.Component {
     if (this.statusLabel) {
       this.statusLabel.string = status;
     }
-    console.log("📢 Status:", status);
   }
 
   handleGameEnd(data) {
-    // FIXED: Set game inactive and clear state
     this.isGameActive = false;
-
     this.updateStatus(
       `Game kết thúc! ${data.winner ? `Người thắng: ${data.winner}` : "Hòa"}`
     );
 
-    // FIXED: Clear game objects immediately when game ends
-    setTimeout(() => {
-      this.clearGameObjects();
-    }, 1000);
-
-    // Show game end UI after delay
-    setTimeout(() => {
-      this.showGameEndOptions();
-    }, 3000);
+    setTimeout(() => this.clearGameObjects(), 1500);
+    setTimeout(() => this.showGameEndOptions(), 4000);
   }
 
   showGameEndOptions() {
-    // FIXED: Reset window.currentRoomId before loading lobby
+    this.resetGameState();
     window.currentRoomId = null;
-
-    // Load về lobby scene hoặc show retry options
     cc.director.loadScene("JoinRoom");
   }
 
-  getPlayerHeadColor(playerId) {
-    // Màu head dựa trên player ID
+  getPlayerColor(playerId, isHead = true) {
     const colors = [
       cc.Color.GREEN,
       cc.Color.BLUE,
       cc.Color.YELLOW,
       cc.Color.MAGENTA,
     ];
-    const hash = this.hashCode(playerId);
-    return colors[Math.abs(hash) % colors.length];
+    const hash = this.hashString(playerId);
+    const baseColor = colors[Math.abs(hash) % colors.length];
+
+    return isHead
+      ? baseColor
+      : new cc.Color(baseColor.r * 0.7, baseColor.g * 0.7, baseColor.b * 0.7);
   }
 
-  getPlayerBodyColor(playerId) {
-    // Màu body nhạt hơn head
-    const headColor = this.getPlayerHeadColor(playerId);
-    return new cc.Color(
-      headColor.r * 0.7,
-      headColor.g * 0.7,
-      headColor.b * 0.7
-    );
-  }
-
-  hashCode(str) {
+  hashString(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
+      hash = hash & hash;
     }
     return hash;
   }
 
   clearGameObjects() {
-    console.log("🧹 Clearing all game objects...");
-
-    // Clear all snakes
-    this.playerSnakes.forEach((snake) => {
-      if (snake && snake.isValid) {
-        snake.destroy();
-      }
-    });
+    this.playerSnakes.forEach((snake) => snake?.isValid && snake.destroy());
     this.playerSnakes.clear();
 
-    // Clear all foods
-    this.foodNodes.forEach((food) => {
-      if (food && food.isValid) {
-        food.destroy();
-      }
-    });
+    this.foodNodes.forEach((food) => food?.isValid && food.destroy());
     this.foodNodes.clear();
   }
 
-  onDestroy() {
-    console.log("🧹 Cleaning up GameController...");
-
-    // FIXED: Set game inactive
+  resetGameState() {
+    this.gameState = null;
     this.isGameActive = false;
-
-    // Clean up
+    this.isInitialized = false;
     this.clearGameObjects();
 
-    // FIXED: Only remove listeners, don't disconnect socket
+    if (this.scoreLabel) {
+      this.scoreLabel.string = "Score: 0";
+    }
+  }
+
+  onDestroy() {
+    this.isGameActive = false;
+    this.isInitialized = false;
+    this.clearGameObjects();
+
     if (this.socket) {
-      this.socket.off("game-started");
-      this.socket.off("game-state");
-      this.socket.off("game-ended");
-      this.socket.off("player-joined");
-      this.socket.off("player-left");
-      this.socket.off("start-game-failed");
-      // DON'T disconnect socket here - leave it for other scenes
+      [
+        "game-started",
+        "game-state",
+        "game-ended",
+        "player-joined",
+        "player-left",
+        "start-game-failed",
+      ].forEach((event) => this.socket.off(event));
     }
 
     cc.systemEvent.off(cc.SystemEvent.EventType.KEY_DOWN);
