@@ -52,9 +52,14 @@ class PlayerService {
   static checkPlayerCollision(player1, player2) {
     if (player1.id === player2.id || !player2.alive) return false;
 
+    // Use the actual head position from body array instead of position property
+    const player1Head = player1.body[0];
+    if (!player1Head) return false;
+
+    // Check if player1's head collides with any part of player2's body
     return player2.body.some(
       (segment) =>
-        segment.x === player1.position.x && segment.y === player1.position.y
+        segment.x === player1Head.x && segment.y === player1Head.y
     );
   }
 
