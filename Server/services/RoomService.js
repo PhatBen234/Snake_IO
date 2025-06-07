@@ -43,6 +43,20 @@ class RoomService {
       config: room.config,
     };
   }
+
+  // Thêm method để validate player limit
+  // static isValidPlayerLimit(limit) {
+  //   return limit >= 2 && limit <= 4;
+  // }
+
+  // // Check xem có thể thay đổi limit không (chỉ khi đang waiting và chưa vượt quá limit mới)
+  // static canChangePlayerLimit(room, newLimit) {
+  //   return (
+  //     room.status === "waiting" && 
+  //     room.players.size <= newLimit && 
+  //     this.isValidPlayerLimit(newLimit)
+  //   );
+  // }
 }
 
 module.exports = RoomService;

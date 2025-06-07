@@ -1,14 +1,15 @@
-// handlers/roomUtils.js
-function getRoomData(controller) {
+function getRoomData(controller) { //flag
   return {
     roomId: controller.room.id,
-    maxPlayers: controller.room.maxPlayers || 4,
+    maxPlayers: controller.room.maxPlayers,
+    currentPlayers: controller.room.players.size,
     players: Array.from(controller.room.players.values()).map((p) => ({
       id: p.id,
       name: p.name,
       ready: p.ready || false,
-      isHost: p.isHost || false, // Thêm thông tin chủ phòng
+      isHost: p.isHost || false,
     })),
+    status: controller.room.status,
   };
 }
 
