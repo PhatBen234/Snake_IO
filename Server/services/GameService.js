@@ -21,7 +21,6 @@ class GameService {
       this.update();
     }, 1000 / 10); // 10 FPS
 
-    // this.io.to(this.room.id).emit("game-started");
   }
 
   stop() {
@@ -36,7 +35,7 @@ class GameService {
   update() {
     if (this.room.status !== "playing") return;
 
-    // Move all players
+    // Move all alive players
     this.room.players.forEach((player) => {
       if (player.alive) {
         PlayerService.movePlayer(player);
@@ -52,20 +51,14 @@ class GameService {
     // Spawn new food if needed
     FoodService.spawnFood(this.room);
 
-    // FIXED: Chỉ kết thúc khi còn 0 players hoặc all players dead
     const activePlayers = RoomService.getActivePlayers(this.room);
+
     if (activePlayers.length === 0) {
       this.endGame();
       return;
     }
 
-    // Hoặc nếu muốn kết thúc khi chỉ còn 1 winner:
-    // if (activePlayers.length === 1 && this.room.players.size > 1) {
-    //   this.endGame();
-    //   return;
-    // }
 
-    // Emit game state
     this.emitGameState();
   }
 
@@ -82,23 +75,28 @@ class GameService {
     });
   }
 
+  // NEW: Updated endGame method to handle quit players properly
   endGame() {
     this.stop();
 
-    // Get all players (both alive and dead) to find the highest score
+    // Get all players including those who quit (they should have score 0)
     const allPlayers = Array.from(this.room.players.values());
 
-    // Find the player with the highest score
-    const winner = allPlayers.reduce((prev, current) => {
-      return prev.score > current.score ? prev : current;
-    });
+    let winner = null;
+    if (allPlayers.length > 0) {
+      winner = allPlayers.reduce((prev, current) => {
+        return prev.score > current.score ? prev : current;
+      });
+    }
 
+    // Emit game ended event with final scores
     this.io.to(this.room.id).emit("game-ended", {
-      winner: winner ? winner.name : null, // Changed from winner.id to winner.name
+      winner: winner ? winner.name : null,
       scores: allPlayers.map((p) => ({
         id: p.id,
         name: p.name,
         score: p.score,
+        status: p.alive ? "alive" : "dead",
       })),
     });
   }
@@ -110,6 +108,22 @@ class GameService {
     };
 
     this.io.to(this.room.id).emit("game-state", gameState);
+  }
+
+  // NEW: Handle player quit during game
+  handlePlayerQuit(playerId) {
+    const player = this.room.players.get(playerId);
+    if (player) {
+      // Set score to 0 and mark as dead
+      player.score = 0;
+      player.alive = false;
+
+      // Check if game should end after this quit
+      const activePlayers = RoomService.getActivePlayers(this.room);
+      if (activePlayers.length <= 1 && this.room.players.size > 1) {
+        setTimeout(() => this.endGame(), 1000); // Small delay to let quit message propagate
+      }
+    }
   }
 }
 

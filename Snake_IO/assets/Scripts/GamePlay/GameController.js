@@ -31,6 +31,7 @@ export default class GameController extends cc.Component {
 
   isGameActive = false;
   isInitialized = false;
+  quitConfirmTimer = null; // NEW: For quit confirmation
 
   start() {
     this.resetGameState();
@@ -92,6 +93,8 @@ export default class GameController extends cc.Component {
       "player-joined",
       "player-left",
       "start-game-failed",
+      "quit-room-success", // NEW
+      "quit-room-failed", // NEW
     ].forEach((event) => this.socket.off(event));
 
     this.socket.on("game-started", (data) => {
@@ -116,10 +119,35 @@ export default class GameController extends cc.Component {
 
     this.socket.on("player-left", (data) => {
       this.removePlayerSnake(data.playerId);
+
+      // NEW: Show quit message
+      if (data.reason === "quit") {
+        this.updateStatus(`${data.playerName} đã thoát phòng`);
+        setTimeout(() => {
+          if (this.isGameActive) {
+            this.updateStatus("Game đang diễn ra...");
+          }
+        }, 2000);
+      }
     });
 
     this.socket.on("start-game-failed", (data) => {
       this.updateStatus(`Không thể bắt đầu: ${data.reason}`);
+    });
+
+    // NEW: Handle quit room responses
+    this.socket.on("quit-room-success", (data) => {
+      this.updateStatus("Đã thoát phòng thành công!");
+      this.resetGameState();
+      window.currentRoomId = null;
+
+      setTimeout(() => {
+        cc.director.loadScene("JoinRoom");
+      }, 1000);
+    });
+
+    this.socket.on("quit-room-failed", (data) => {
+      this.updateStatus(`Không thể thoát phòng: ${data.reason}`);
     });
   }
 
@@ -127,11 +155,17 @@ export default class GameController extends cc.Component {
     cc.systemEvent.on(
       cc.SystemEvent.EventType.KEY_DOWN,
       (event) => {
-        if (!this.canProcessInput()) return;
+        // Movement controls
+        if (this.canProcessInput()) {
+          const direction = this.getDirectionFromKey(event.keyCode);
+          if (direction) {
+            this.sendPlayerMove(direction);
+          }
+        }
 
-        const direction = this.getDirectionFromKey(event.keyCode);
-        if (direction) {
-          this.sendPlayerMove(direction);
+        // NEW: Quit room với phím ESC
+        if (event.keyCode === cc.macro.KEY.escape) {
+          this.quitRoom();
         }
       },
       this
@@ -159,6 +193,43 @@ export default class GameController extends cc.Component {
       [cc.macro.KEY.d]: { x: 1, y: 0 },
     };
     return directions[keyCode];
+  }
+
+  // NEW: Quit room method
+  quitRoom() {
+    if (!this.socket || !this.currentRoom || !this.playerId) {
+      this.updateStatus("Không thể thoát phòng - thiếu thông tin!");
+      return;
+    }
+
+    // Confirm quit nếu đang chơi game
+    if (this.isGameActive) {
+      if (!this.quitConfirmTimer) {
+        this.updateStatus("Nhấn ESC lần nữa để xác nhận thoát (sẽ mất điểm)");
+
+        this.quitConfirmTimer = setTimeout(() => {
+          this.quitConfirmTimer = null;
+          if (
+            this.statusLabel &&
+            this.statusLabel.string.includes("xác nhận")
+          ) {
+            this.updateStatus("Game đang diễn ra...");
+          }
+        }, 3000);
+        return;
+      } else {
+        // Double ESC press confirmed
+        clearTimeout(this.quitConfirmTimer);
+        this.quitConfirmTimer = null;
+      }
+    }
+
+    this.updateStatus("Đang thoát phòng...");
+
+    this.socket.emit("quit-room", {
+      roomId: this.currentRoom,
+      playerId: this.playerId,
+    });
   }
 
   autoStartGame() {
@@ -381,12 +452,24 @@ export default class GameController extends cc.Component {
     if (this.scoreLabel) {
       this.scoreLabel.string = "Score: 0";
     }
+
+    // NEW: Clear quit confirmation timer
+    if (this.quitConfirmTimer) {
+      clearTimeout(this.quitConfirmTimer);
+      this.quitConfirmTimer = null;
+    }
   }
 
   onDestroy() {
     this.isGameActive = false;
     this.isInitialized = false;
     this.clearGameObjects();
+
+    // NEW: Clear quit confirmation timer
+    if (this.quitConfirmTimer) {
+      clearTimeout(this.quitConfirmTimer);
+      this.quitConfirmTimer = null;
+    }
 
     if (this.socket) {
       [
@@ -396,6 +479,8 @@ export default class GameController extends cc.Component {
         "player-joined",
         "player-left",
         "start-game-failed",
+        "quit-room-success", // NEW
+        "quit-room-failed", // NEW
       ].forEach((event) => this.socket.off(event));
     }
 

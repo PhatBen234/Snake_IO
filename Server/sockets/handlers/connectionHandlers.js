@@ -11,8 +11,6 @@ function setupConnectionHandlers(socket, controllers, RoomService) {
     const controller = controllers.get(roomId);
     if (controller) {
       controller.removePlayer(playerId);
-
-      // Get updated room data - FIX: Convert Map to Array  
       const roomData = getRoomData(controller);
 
       // Notify other players
