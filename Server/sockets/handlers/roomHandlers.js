@@ -1,18 +1,30 @@
-;// handlers/roomHandlers.js
+// handlers/roomHandlers.js
 const { getRoomData, cleanupEmptyRoom } = require("../utils/roomUtils");
 
 function setupRoomHandlers(socket, controllers, dependencies) {
   const { Player, GameController, RoomService, getRandomStartPosition, io } = dependencies;
 
-  // Tạo phòng mới
+  // Tạo phòng mới với player limit validation
   socket.on("create-room", (data) => {
-    const { playerId, playerName } = data;
-    
+    const { playerId, playerName, playerLimit = 4 } = data;
+
+    // Validate player limit
+    if (!RoomService.isValidPlayerLimit(playerLimit)) {
+      socket.emit("create-failed", {
+        reason: "Player limit must be between 2 and 4",
+      });
+      return;
+    }
+
     // Tạo roomId ngẫu nhiên
     const roomId = `room_${Math.random().toString(36).substr(2, 8)}`;
 
     // Tạo controller mới
     const controller = new GameController(roomId, io);
+
+    // Set player limit for the room
+    controller.setPlayerLimit(playerLimit);
+
     controllers.set(roomId, controller);
 
     // Tạo player với random start position

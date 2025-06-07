@@ -10,6 +10,8 @@ export default class UIController extends cc.Component {
   @property(cc.Button) createLobbyBtn = null;
   @property(cc.Label) statusLabel = null;
 
+  // Player Limit Controls
+  @property(cc.EditBox) playerLimitInput = null;
   // Lobby Panel
   @property(cc.Node) lobbyPanel = null;
   @property(cc.Label) roomInfoLabel = null;
@@ -53,6 +55,11 @@ export default class UIController extends cc.Component {
   setDefaultValues() {
     this.playerNameInput.string = `Player_${Math.floor(Math.random() * 1000)}`;
     this.roomIdInput.string = "";
+
+    // Set default player limit to 4
+    if (this.playerLimitInput) {
+      this.playerLimitInput.string = "4";
+    }
   }
 
   showJoinPanel() {
@@ -179,10 +186,12 @@ export default class UIController extends cc.Component {
 
   onCreateRoomClick() {
     const playerName = this.playerNameInput.string.trim();
+    const playerLimit = parseInt(this.playerLimitInput?.string || "4");
 
     if (!this.validateInput("", playerName, false)) return;
+    if (!this.validatePlayerLimit(playerLimit)) return;
 
-    this.triggerCallback("createRoom", { playerName });
+    this.triggerCallback("createRoom", { playerName, playerLimit });
   }
 
   validateInput(roomId, playerName, needRoomId) {
@@ -196,6 +205,14 @@ export default class UIController extends cc.Component {
       return false;
     }
 
+    return true;
+  }
+
+  validatePlayerLimit(limit) {
+    if (isNaN(limit) || limit < 2 || limit > 4) {
+      this.updateStatus("Giới hạn người chơi phải từ 2 đến 4!");
+      return false;
+    }
     return true;
   }
 

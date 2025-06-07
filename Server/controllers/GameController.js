@@ -49,23 +49,23 @@ class GameController {
   }
 
   // Thêm method để set player limit
-  // setPlayerLimit(limit) {
-  //   // Validate: chỉ cho phép từ 2-4 players
-  //   if (limit >= 2 && limit <= 4) {
-  //     this.room.maxPlayers = limit;
-  //     return true;
-  //   }
-  //   return false;
-  // }
+  setPlayerLimit(limit) {
+    // Validate: chỉ cho phép từ 2-4 players
+    if (limit >= 2 && limit <= 4) {
+      this.room.maxPlayers = limit;
+      return true;
+    }
+    return false;
+  }
 
-  // resetRoom() {
-  //   this.room.status = "waiting";
-  //   this.room.players.clear();
-  //   this.room.foods.clear();
-  //   this.room.createdAt = Date.now();
-  //   // Reset về default khi reset room
-  //   this.room.maxPlayers = 4;
-  // }
+  resetRoom() {
+    this.room.status = "waiting";
+    this.room.players.clear();
+    this.room.foods.clear();
+    this.room.createdAt = Date.now();
+    // Reset về default khi reset room
+    this.room.maxPlayers = 4;
+  }
 
   changePlayerDirection(playerId, direction) {
     const player = this.room.players.get(playerId);

@@ -80,7 +80,7 @@ export default class RoomJoinUI extends cc.Component {
 
     // UI events
     this.uiController.on("createRoom", (data) =>
-      this.createRoom(data.playerName)
+      this.createRoom(data.playerName, data.playerLimit)
     );
     this.uiController.on("joinRoom", (data) =>
       this.joinRoom(data.roomId, data.playerName)
@@ -107,13 +107,17 @@ export default class RoomJoinUI extends cc.Component {
     }
   }
 
-  createRoom(playerName) {
+  createRoom(playerName, playerLimit = 4) {
     if (!this.validateConnection()) return;
+
+    // Validate player limit on client side
+    if (!this.validatePlayerLimit(playerLimit)) return;
 
     this.uiController.updateStatus("Đang tạo phòng...");
     this.socketManager.emit("create-room", {
       playerId: this.socketManager.getPlayerId(),
       playerName: playerName,
+      playerLimit: playerLimit,
     });
   }
 
@@ -174,6 +178,14 @@ export default class RoomJoinUI extends cc.Component {
       return false;
     }
 
+    return true;
+  }
+
+  validatePlayerLimit(limit) {
+    if (typeof limit !== "number" || isNaN(limit) || limit < 2 || limit > 4) {
+      this.uiController.updateStatus("Giới hạn người chơi phải từ 2 đến 4!");
+      return false;
+    }
     return true;
   }
 
