@@ -1,4 +1,4 @@
-// handlers/gameHandlers.js
+// handlers/gameHandlers.js - Clean version
 function setupGameHandlers(socket, controllers, io) {
   socket.on("start-game", (data) => {
     const { roomId } = data;
@@ -50,20 +50,38 @@ function setupGameHandlers(socket, controllers, io) {
 
     // Handle quit based on game state
     if (controller.room.status === "playing") {
+      // Handle quit - GameService sẽ tự check endGame
       controller.gameService.handlePlayerQuit(playerId);
-    }
 
-    // Remove player and notify others
-    controller.room.players.delete(playerId);
-    socket.leave(roomId);
-    socket
-      .to(roomId)
-      .emit("player-left", { playerId, playerName: player.name });
-    socket.emit("quit-room-success");
+      // Notify others về việc quit
+      socket.to(roomId).emit("player-left", {
+        playerId,
+        playerName: player.name,
+        reason: "quit",
+      });
 
-    // Clean up empty room
-    if (controller.room.players.size === 0) {
-      controllers.delete(roomId);
+      // Remove socket khỏi room nhưng giữ player data
+      socket.leave(roomId);
+      socket.emit("quit-room-success");
+
+      // Room cleanup sẽ được handle trong GameService.endGame()
+    } else {
+      // Game chưa bắt đầu - xử lý quit bình thường
+      controller.room.players.delete(playerId);
+      socket.leave(roomId);
+
+      socket.to(roomId).emit("player-left", {
+        playerId,
+        playerName: player.name,
+        reason: "quit",
+      });
+
+      socket.emit("quit-room-success");
+
+      // Clean up empty room
+      if (controller.room.players.size === 0) {
+        controllers.delete(roomId);
+      }
     }
   });
 }

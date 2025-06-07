@@ -400,6 +400,17 @@ export default class GameController extends cc.Component {
       `Game kết thúc! ${data.winner ? `Người thắng: ${data.winner}` : "Hòa"}`
     );
 
+    // Log điểm của tất cả players
+    if (this.gameState && this.gameState.players) {
+      console.log("=== KẾT QUẢ GAME ===");
+      this.gameState.players.forEach((player, index) => {
+        console.log(
+          `Player ${index + 1} (ID: ${player.id}): ${player.score} điểm`
+        );
+      });
+      console.log("==================");
+    }
+
     setTimeout(() => this.clearGameObjects(), 1500);
     setTimeout(() => this.showGameEndOptions(), 4000);
   }

@@ -7,7 +7,7 @@ class GameService {
   constructor(room, io, gameController) {
     this.room = room;
     this.io = io;
-    this.gameController = gameController; // Reference to GameController
+    this.gameController = gameController;
     this.gameInterval = null;
   }
 
@@ -20,7 +20,6 @@ class GameService {
     this.gameInterval = setInterval(() => {
       this.update();
     }, 1000 / 10); // 10 FPS
-
   }
 
   stop() {
@@ -58,7 +57,6 @@ class GameService {
       return;
     }
 
-
     this.emitGameState();
   }
 
@@ -75,11 +73,9 @@ class GameService {
     });
   }
 
-  // NEW: Updated endGame method to handle quit players properly
   endGame() {
     this.stop();
 
-    // Get all players including those who quit (they should have score 0)
     const allPlayers = Array.from(this.room.players.values());
 
     let winner = null;
@@ -89,7 +85,7 @@ class GameService {
       });
     }
 
-    // Emit game ended event with final scores
+    // Emit game ended event
     this.io.to(this.room.id).emit("game-ended", {
       winner: winner ? winner.name : null,
       scores: allPlayers.map((p) => ({
@@ -110,18 +106,17 @@ class GameService {
     this.io.to(this.room.id).emit("game-state", gameState);
   }
 
-  // NEW: Handle player quit during game
   handlePlayerQuit(playerId) {
     const player = this.room.players.get(playerId);
     if (player) {
-      // Set score to 0 and mark as dead
+      // Set score to 0 and mark as dead for AFK/quit players
       player.score = 0;
       player.alive = false;
 
       // Check if game should end after this quit
       const activePlayers = RoomService.getActivePlayers(this.room);
       if (activePlayers.length <= 1 && this.room.players.size > 1) {
-        setTimeout(() => this.endGame(), 1000); // Small delay to let quit message propagate
+        setTimeout(() => this.endGame(), 1000);
       }
     }
   }
