@@ -14,8 +14,9 @@ class FoodService {
 
   static getRandomPosition(config) {
     const { width, height } = config;
-    const x = Math.floor(Math.random() * (width - 40)) + 20;
-    const y = Math.floor(Math.random() * (height - 40)) + 20;
+    const padding = 100; // Tăng từ 20 lên 100 để thu hẹp vùng spawn
+    const x = Math.floor(Math.random() * (width - padding * 2)) + padding;
+    const y = Math.floor(Math.random() * (height - padding * 2)) + padding;
     return { x, y };
   }
 
