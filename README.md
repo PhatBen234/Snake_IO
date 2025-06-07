@@ -20,7 +20,7 @@ requirements:
 - 2.2 Expand to maximum 4 players in a room, the player who create a room having option to input how many players can play in a room, the game will start only having enough players in a room //✅
 - 2.3 Add player name input at join / create room and show current player count in a room, then display players' name in room //✅
 - 2.4 Create new game rule to win with 4 players: for example count down time and who gets the best score is the 1st winner, or battle area who is the latest survivor in game is the winner //✅
-- 2.5 Implement "Quit room" feature so that this quitter will be removed from the in-progress games and get the 0 score then can not join room back
+- 2.5 Implement "Quit room" feature so that this quitter will be removed from the in-progress games and get the 0 score then can not join room back  //✅
 - 2.6 Show the score table pop up at game over
 - 2.7 Create collectible items that having effects (negative or positive) to the player 
 - 2.8 Create more maps with different difficulties and grid size to play online with others player
