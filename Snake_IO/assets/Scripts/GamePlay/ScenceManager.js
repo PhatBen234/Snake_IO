@@ -13,13 +13,10 @@ export default class SceneManager extends cc.Component {
 
     SceneManager.instance = this;
     cc.game.addPersistRootNode(this.node);
-
-    console.log("🎬 SceneManager initialized");
     this.setupSceneEvents();
   }
 
   setupSceneEvents() {
-    // Listen for scene loading events
     cc.director.on(
       cc.Director.EVENT_BEFORE_SCENE_LOADING,
       this.onBeforeSceneLoad,
@@ -33,71 +30,53 @@ export default class SceneManager extends cc.Component {
   }
 
   onBeforeSceneLoad(sceneName) {
-    console.log("🎬 Loading scene:", sceneName);
     this.showLoadingScreen();
   }
 
   onAfterSceneLoad(sceneName) {
-    console.log("✅ Scene loaded:", sceneName);
     this.hideLoadingScreen();
-
-    // Handle post-load setup
     this.handleSceneLoaded(sceneName);
   }
 
   handleSceneLoaded(sceneName) {
-    switch (sceneName) {
-      case "GameScene":
-        this.onGameSceneLoaded();
-        break;
-      case "JoinRoom":
-        this.onLobbySceneLoaded();
-        break;
-      case "MenuScene":
-        this.onMenuSceneLoaded();
-        break;
-    }
+    const sceneHandlers = {
+      GameScene: () => this.onGameSceneLoaded(),
+      JoinRoom: () => this.onLobbySceneLoaded(),
+      MenuScene: () => this.onMenuSceneLoaded(),
+    };
+
+    const handler = sceneHandlers[sceneName];
+    if (handler) handler();
   }
 
   onGameSceneLoaded() {
-    console.log("🎮 Game scene loaded, checking game data...");
-
-    // Verify required data exists
-    if (!window.gameSocket || !window.currentRoomId) {
-      console.error("❌ Missing game data, returning to lobby");
+    if (!this.hasRequiredGameData()) {
       this.loadLobbyScene();
-      return;
     }
-
-    console.log("✅ Game data verified, ready to play");
   }
 
   onLobbySceneLoaded() {
-    console.log("🏠 Lobby scene loaded");
-
-    // Clean up game data if returning from game
     this.cleanupGameData();
   }
 
   onMenuSceneLoaded() {
-    console.log("📋 Menu scene loaded");
-
-    // Complete cleanup when returning to menu
     this.fullCleanup();
   }
 
   showLoadingScreen() {
-    // Create simple loading overlay
-    const loadingNode = new cc.Node("LoadingScreen");
-    loadingNode.parent = cc.director.getScene();
+    if (this.loadingScreen) return;
 
-    // Add background
+    const scene = cc.director.getScene();
+    const loadingNode = new cc.Node("LoadingScreen");
+    loadingNode.parent = scene;
+
+    // Background
     const bg = loadingNode.addComponent(cc.Sprite);
     loadingNode.color = new cc.Color(0, 0, 0, 180);
     loadingNode.width = cc.winSize.width;
     loadingNode.height = cc.winSize.height;
 
-    // Add loading text
+    // Loading text
     const textNode = new cc.Node("LoadingText");
     textNode.parent = loadingNode;
     const label = textNode.addComponent(cc.Label);
@@ -105,7 +84,6 @@ export default class SceneManager extends cc.Component {
     label.fontSize = 24;
     label.node.color = cc.Color.WHITE;
 
-    // Store reference for cleanup
     this.loadingScreen = loadingNode;
   }
 
@@ -116,13 +94,11 @@ export default class SceneManager extends cc.Component {
     }
   }
 
-  // Public methods for scene transitions
+  // Public scene transition methods
   loadGameScene() {
-    if (!window.gameSocket || !window.currentRoomId) {
-      console.error("❌ Cannot load game scene: missing data");
+    if (!this.hasRequiredGameData()) {
       return false;
     }
-
     cc.director.loadScene("GameScene");
     return true;
   }
@@ -141,33 +117,23 @@ export default class SceneManager extends cc.Component {
     window.currentRoomId = roomDataManager.getCurrentRoom();
     window.currentPlayerId = socketManager.getPlayerId();
     window.roomData = roomDataManager.getRoomData();
-
-    console.log("💾 Game data saved for scene transition");
   }
 
   cleanupGameData() {
-    // Keep socket connection but clean other data
-    if (window.gameSocket && window.gameSocket.connected) {
-      console.log("🔄 Keeping socket connection active");
-    }
-
-    // Clear room-specific data
+    // Keep socket connection active
     window.currentRoomId = null;
     window.roomData = null;
   }
 
   fullCleanup() {
-    // Complete cleanup including socket
-    if (window.gameSocket) {
+    if (window.gameSocket && window.gameSocket.connected) {
       window.gameSocket.disconnect();
-      window.gameSocket = null;
     }
 
+    window.gameSocket = null;
     window.currentRoomId = null;
     window.currentPlayerId = null;
     window.roomData = null;
-
-    console.log("🧹 Full cleanup completed");
   }
 
   // Utility methods
@@ -183,52 +149,52 @@ export default class SceneManager extends cc.Component {
     return this.getCurrentScene() === "JoinRoom";
   }
 
-  // Game flow helpers
-  returnToLobbyFromGame() {
-    console.log("🔙 Returning to lobby from game");
+  hasRequiredGameData() {
+    return window.gameSocket && window.currentRoomId;
+  }
 
-    // Send leave game event if still connected
-    if (
-      window.gameSocket &&
-      window.gameSocket.connected &&
-      window.currentRoomId
-    ) {
+  // Game flow methods
+  returnToLobbyFromGame() {
+    this.emitLeaveGameEvent();
+    this.loadLobbyScene();
+  }
+
+  quitToMenu() {
+    if (this.isInGame()) {
+      this.emitLeaveGameEvent();
+    }
+    this.emitLeaveRoomEvent();
+    this.loadMenuScene();
+  }
+
+  emitLeaveGameEvent() {
+    if (this.canEmitSocketEvent()) {
       window.gameSocket.emit("leave-game", {
         roomId: window.currentRoomId,
         playerId: window.currentPlayerId,
       });
     }
-
-    this.loadLobbyScene();
   }
 
-  quitToMenu() {
-    console.log("🚪 Quitting to menu");
-
-    // Send appropriate leave events
-    if (
-      window.gameSocket &&
-      window.gameSocket.connected &&
-      window.currentRoomId
-    ) {
-      if (this.isInGame()) {
-        window.gameSocket.emit("leave-game", {
-          roomId: window.currentRoomId,
-          playerId: window.currentPlayerId,
-        });
-      }
-
+  emitLeaveRoomEvent() {
+    if (this.canEmitSocketEvent()) {
       window.gameSocket.emit("leave-room", {
         roomId: window.currentRoomId,
         playerId: window.currentPlayerId,
       });
     }
+  }
 
-    this.loadMenuScene();
+  canEmitSocketEvent() {
+    return (
+      window.gameSocket &&
+      window.gameSocket.connected &&
+      window.currentRoomId &&
+      window.currentPlayerId
+    );
   }
 
   onDestroy() {
-    // Clean up event listeners
     cc.director.off(
       cc.Director.EVENT_BEFORE_SCENE_LOADING,
       this.onBeforeSceneLoad,
