@@ -52,32 +52,13 @@ class PlayerService {
   static checkPlayerCollision(player1, player2) {
     if (player1.id === player2.id || !player2.alive) return false;
 
-    // Use the actual head position from body array instead of position property
     const player1Head = player1.body[0];
     if (!player1Head) return false;
-
-    // Debug log
-    // console.log(
-    //   `Checking collision between ${player1.name} and ${player2.name}`
-    // );
-    // console.log(`Player1 head:`, player1Head);
-    // console.log(`Player2 body:`, player2.body);
-
-    // Check if player1's head collides with ANY part of player2's body (including head)
-    // Use distance-based collision detection instead of exact coordinate matching
     const collision = player2.body.some((segment) => {
       const dx = Math.abs(segment.x - player1Head.x);
       const dy = Math.abs(segment.y - player1Head.y);
-      // Collision if distance is less than or equal to speed (usually 5 pixels)
-      return dx <= 5 && dy <= 5;
+      return dx <= 15 && dy <= 15; // fix nay de tang do nhay
     });
-
-    if (collision) {
-      console.log(
-        `🔥 COLLISION DETECTED: ${player1.name} hit ${player2.name}!`
-      );
-    }
-
     return collision;
   }
 
