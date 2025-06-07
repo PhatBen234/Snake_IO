@@ -3,54 +3,26 @@ const { ccclass, property } = cc._decorator;
 @ccclass
 export default class UIController extends cc.Component {
   // Join Panel
-  @property(cc.Node)
-  joinPanel = null;
-
-  @property(cc.EditBox)
-  roomIdInput = null;
-
-  @property(cc.EditBox)
-  playerNameInput = null;
-
-  @property(cc.Button)
-  joinBtn = null;
-
-  @property(cc.Button)
-  createLobbyBtn = null;
-
-  @property(cc.Label)
-  statusLabel = null;
+  @property(cc.Node) joinPanel = null;
+  @property(cc.EditBox) roomIdInput = null;
+  @property(cc.EditBox) playerNameInput = null;
+  @property(cc.Button) joinBtn = null;
+  @property(cc.Button) createLobbyBtn = null;
+  @property(cc.Label) statusLabel = null;
 
   // Lobby Panel
-  @property(cc.Node)
-  lobbyPanel = null;
-
-  @property(cc.Label)
-  roomInfoLabel = null;
-
-  @property(cc.Label)
-  roomIdCopyLabel = null;
-
-  @property(cc.Button)
-  copyRoomIdBtn = null; // Thêm nút copy
-
-  @property(cc.Label)
-  playersCountLabel = null;
-
-  @property(cc.Node)
-  playersListNode = null;
-
-  @property(cc.Prefab)
-  playerItemPrefab = null;
-
-  @property(cc.Button)
-  startGameBtn = null;
-
-  @property(cc.Button)
-  leaveRoomBtn = null;
+  @property(cc.Node) lobbyPanel = null;
+  @property(cc.Label) roomInfoLabel = null;
+  @property(cc.Label) roomIdCopyLabel = null;
+  @property(cc.Button) copyRoomIdBtn = null;
+  @property(cc.Label) playersCountLabel = null;
+  @property(cc.Node) playersListNode = null;
+  @property(cc.Prefab) playerItemPrefab = null;
+  @property(cc.Button) startGameBtn = null;
+  @property(cc.Button) leaveRoomBtn = null;
 
   callbacks = {};
-  currentRoomId = ""; // Lưu room ID hiện tại
+  currentRoomId = "";
 
   onLoad() {
     this.setupUI();
@@ -73,8 +45,6 @@ export default class UIController extends cc.Component {
     if (this.leaveRoomBtn) {
       this.leaveRoomBtn.node.on("click", this.onLeaveRoomClick, this);
     }
-
-    // Thêm event cho nút copy
     if (this.copyRoomIdBtn) {
       this.copyRoomIdBtn.node.on("click", this.onCopyRoomIdClick, this);
     }
@@ -86,26 +56,27 @@ export default class UIController extends cc.Component {
   }
 
   showJoinPanel() {
-    if (this.joinPanel) this.joinPanel.active = true;
-    if (this.lobbyPanel) this.lobbyPanel.active = false;
+    this.togglePanels(true, false);
   }
 
   showLobbyPanel() {
-    if (this.joinPanel) this.joinPanel.active = false;
-    if (this.lobbyPanel) this.lobbyPanel.active = true;
+    this.togglePanels(false, true);
+  }
+
+  togglePanels(showJoin, showLobby) {
+    if (this.joinPanel) this.joinPanel.active = showJoin;
+    if (this.lobbyPanel) this.lobbyPanel.active = showLobby;
   }
 
   updateStatus(message) {
     if (this.statusLabel) {
       this.statusLabel.string = message;
     }
-    console.log("📢 Status:", message);
   }
 
   updateRoomInfo(roomId, roomData, isHost, playerId) {
     if (!roomData) return;
 
-    // Lưu room ID để dùng cho copy
     this.currentRoomId = roomId;
 
     if (this.roomInfoLabel) {
@@ -116,18 +87,20 @@ export default class UIController extends cc.Component {
       this.roomIdCopyLabel.string = `Room ID: ${roomId}`;
     }
 
-    if (this.playersCountLabel) {
-      const playerCount = roomData.players ? roomData.players.length : 0;
-      const maxPlayers = roomData.maxPlayers || 4;
-      this.playersCountLabel.string = `${playerCount}/${maxPlayers} players in room`;
-    }
-
+    this.updatePlayersCount(roomData);
     this.updateStartGameButton(isHost, roomData);
     this.updatePlayersList(roomData, playerId);
 
-    // Hiển thị nút copy khi có room ID
     if (this.copyRoomIdBtn) {
       this.copyRoomIdBtn.node.active = !!roomId;
+    }
+  }
+
+  updatePlayersCount(roomData) {
+    if (this.playersCountLabel) {
+      const playerCount = roomData.players?.length || 0;
+      const maxPlayers = roomData.maxPlayers || 4;
+      this.playersCountLabel.string = `${playerCount}/${maxPlayers} players in room`;
     }
   }
 
@@ -137,82 +110,69 @@ export default class UIController extends cc.Component {
     this.startGameBtn.node.active = isHost;
 
     if (isHost && roomData) {
-      const playerCount = roomData.players ? roomData.players.length : 0;
-      const minPlayers = 2;
+      const playerCount = roomData.players?.length || 0;
+      const canStart = playerCount >= 2;
 
-      this.startGameBtn.interactable = playerCount >= minPlayers;
-
-      if (playerCount >= minPlayers) {
-        this.startGameBtn.node.color = cc.Color.WHITE;
-      } else {
-        this.startGameBtn.node.color = cc.Color.GRAY;
-      }
+      this.startGameBtn.interactable = canStart;
+      this.startGameBtn.node.color = canStart ? cc.Color.WHITE : cc.Color.GRAY;
     }
   }
 
   updatePlayersList(roomData, playerId) {
-    if (!this.playersListNode || !roomData || !roomData.players) return;
+    if (!this.playersListNode || !roomData?.players) return;
 
     this.playersListNode.removeAllChildren();
 
-    roomData.players.forEach((player, index) => {
-      let playerItem;
-
-      if (this.playerItemPrefab) {
-        playerItem = cc.instantiate(this.playerItemPrefab);
-      } else {
-        playerItem = new cc.Node();
-        playerItem.addComponent(cc.Label);
-      }
-
+    roomData.players.forEach((player) => {
+      const playerItem = this.createPlayerItem();
       const label = playerItem.getComponent(cc.Label);
+
       if (label) {
-        let playerText = `${player.name}`;
-
-        if (player.isHost) {
-          playerText += " 👑";
-        }
-
+        label.string = this.getPlayerDisplayName(player, playerId);
         if (player.id === playerId) {
-          playerText += " (You)";
           label.node.color = cc.Color.YELLOW;
         }
-
-        label.string = playerText;
       }
 
       this.playersListNode.addChild(playerItem);
     });
   }
 
-  setButtonInteractable(buttonName, interactable) {
-    switch (buttonName) {
-      case "join":
-        this.joinBtn.interactable = interactable;
-        break;
-      case "create":
-        this.createLobbyBtn.interactable = interactable;
-        break;
+  createPlayerItem() {
+    if (this.playerItemPrefab) {
+      return cc.instantiate(this.playerItemPrefab);
     }
+
+    const playerItem = new cc.Node();
+    playerItem.addComponent(cc.Label);
+    return playerItem;
+  }
+
+  getPlayerDisplayName(player, playerId) {
+    let name = player.name;
+    if (player.isHost) name += " 👑";
+    if (player.id === playerId) name += " (You)";
+    return name;
+  }
+
+  setButtonsEnabled(enabled) {
+    this.joinBtn.interactable = enabled;
+    this.createLobbyBtn.interactable = enabled;
   }
 
   hideUI() {
     this.node.active = false;
   }
 
+  showUI() {
+    this.node.active = true;
+  }
+
   onJoinRoomClick() {
     const roomId = this.roomIdInput.string.trim();
     const playerName = this.playerNameInput.string.trim();
 
-    if (!roomId) {
-      this.updateStatus("Vui lòng nhập ID phòng!");
-      return;
-    }
-
-    if (!playerName) {
-      this.updateStatus("Vui lòng nhập tên người chơi!");
-      return;
-    }
+    if (!this.validateInput(roomId, playerName, true)) return;
 
     this.triggerCallback("joinRoom", { roomId, playerName });
   }
@@ -220,12 +180,23 @@ export default class UIController extends cc.Component {
   onCreateRoomClick() {
     const playerName = this.playerNameInput.string.trim();
 
-    if (!playerName) {
-      this.updateStatus("Vui lòng nhập tên người chơi!");
-      return;
-    }
+    if (!this.validateInput("", playerName, false)) return;
 
     this.triggerCallback("createRoom", { playerName });
+  }
+
+  validateInput(roomId, playerName, needRoomId) {
+    if (needRoomId && !roomId) {
+      this.updateStatus("Vui lòng nhập ID phòng!");
+      return false;
+    }
+
+    if (!playerName) {
+      this.updateStatus("Vui lòng nhập tên người chơi!");
+      return false;
+    }
+
+    return true;
   }
 
   onStartGameClick() {
@@ -237,47 +208,38 @@ export default class UIController extends cc.Component {
   }
 
   onCopyRoomIdClick() {
-    const roomId = this.currentRoomId;
-
-    if (!roomId) {
+    if (!this.currentRoomId) {
       this.updateStatus("Không có Room ID để copy!");
       return;
     }
 
-    // Thử copy bằng clipboard API
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
+    this.copyToClipboard(this.currentRoomId);
+  }
+
+  copyToClipboard(text) {
+    if (navigator?.clipboard) {
       navigator.clipboard
-        .writeText(roomId)
-        .then(() => {
-          this.updateStatus(`✅ Đã copy Room ID: ${roomId}`);
-        })
-        .catch((err) => {
-          console.error("Failed to copy: ", err);
-          this.fallbackCopy(roomId);
-        });
+        .writeText(text)
+        .then(() => this.updateStatus(`✅ Đã copy Room ID: ${text}`))
+        .catch(() => this.fallbackCopy(text));
     } else {
-      // Fallback cho các trường hợp không support clipboard API
-      this.fallbackCopy(roomId);
+      this.fallbackCopy(text);
     }
   }
 
-  fallbackCopy(roomId) {
-    // Tạo một textarea ẩn để copy
+  fallbackCopy(text) {
     const textArea = document.createElement("textarea");
-    textArea.value = roomId;
-    textArea.style.position = "fixed";
-    textArea.style.left = "-999999px";
-    textArea.style.top = "-999999px";
+    textArea.value = text;
+    textArea.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
+
     document.body.appendChild(textArea);
-    textArea.focus();
     textArea.select();
 
     try {
       document.execCommand("copy");
-      this.updateStatus(`✅ Đã copy Room ID: ${roomId}`);
+      this.updateStatus(`✅ Đã copy Room ID: ${text}`);
     } catch (err) {
-      console.error("Fallback copy failed: ", err);
-      this.updateStatus(`Room ID: ${roomId} (Không thể copy tự động)`);
+      this.updateStatus(`Room ID: ${text} (Không thể copy tự động)`);
     }
 
     document.body.removeChild(textArea);
@@ -291,8 +253,6 @@ export default class UIController extends cc.Component {
   }
 
   triggerCallback(event, data = null) {
-    if (this.callbacks[event]) {
-      this.callbacks[event].forEach((callback) => callback(data));
-    }
+    this.callbacks[event]?.forEach((callback) => callback(data));
   }
 }

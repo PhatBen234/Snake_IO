@@ -1,11 +1,9 @@
 export default class RoomDataManager {
-  currentRoom = null;
-  roomData = null;
-  isHost = false;
-  playerId = null;
-
   constructor(playerId) {
     this.playerId = playerId;
+    this.currentRoom = null;
+    this.roomData = null;
+    this.isHost = false;
   }
 
   setRoomData(roomId, roomData, isHost) {
@@ -41,17 +39,15 @@ export default class RoomDataManager {
   }
 
   getPlayerCount() {
-    return this.roomData && this.roomData.players
-      ? this.roomData.players.length
-      : 0;
+    return this.roomData?.players?.length || 0;
   }
 
   getMaxPlayers() {
-    return this.roomData ? this.roomData.maxPlayers || 4 : 4;
+    return this.roomData?.maxPlayers || 4;
   }
 
   getPlayers() {
-    return this.roomData && this.roomData.players ? this.roomData.players : [];
+    return this.roomData?.players || [];
   }
 
   canStartGame(minPlayers = 2) {
@@ -59,7 +55,8 @@ export default class RoomDataManager {
   }
 
   getCurrentPlayer() {
-    if (!this.roomData || !this.roomData.players) return null;
-    return this.roomData.players.find((player) => player.id === this.playerId);
+    return (
+      this.getPlayers().find((player) => player.id === this.playerId) || null
+    );
   }
 }
