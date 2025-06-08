@@ -79,15 +79,28 @@ class GameService {
     const allPlayers = Array.from(this.room.players.values());
 
     let winner = null;
+    let isDraw = false;
+
     if (allPlayers.length > 0) {
-      winner = allPlayers.reduce((prev, current) => {
-        return prev.score > current.score ? prev : current;
-      });
+      // Tìm điểm cao nhất
+      const maxScore = Math.max(...allPlayers.map((p) => p.score));
+
+      // Tìm tất cả người có điểm cao nhất
+      const topPlayers = allPlayers.filter((p) => p.score === maxScore);
+
+      // CHECK DRAW: Nếu có nhiều hơn 1 người cùng điểm cao nhất
+      if (topPlayers.length > 1) {
+        isDraw = true;
+        winner = null;
+      } else {
+        winner = topPlayers[0].name;
+      }
     }
 
-    // Emit game ended event
+    // Emit game ended event (giữ nguyên format cũ + thêm isDraw)
     this.io.to(this.room.id).emit("game-ended", {
-      winner: winner ? winner.name : null,
+      winner: winner,
+      isDraw: isDraw, // <- CHỈ THÊM DÒNG NÀY
       scores: allPlayers.map((p) => ({
         id: p.id,
         name: p.name,
