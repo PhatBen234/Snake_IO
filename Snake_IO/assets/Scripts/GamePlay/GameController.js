@@ -64,11 +64,11 @@ export default class GameController extends cc.Component {
       }
 
       this.isInitialized = true;
-      this.updateStatus("Đã sẵn sàng - Chờ bắt đầu game...");
+      this.updateStatus("All ready! Waiting for game start...");
 
       setTimeout(() => this.autoStartGame(), 1000);
     } catch (error) {
-      this.updateStatus("Lỗi khởi tạo - Quay về lobby...");
+      this.updateStatus("ERROR - Return to lobby...");
       setTimeout(() => cc.director.loadScene("JoinRoom"), 2000);
     }
   }
@@ -77,7 +77,7 @@ export default class GameController extends cc.Component {
     this.socket = window.gameSocket;
 
     if (!this.socket?.connected) {
-      this.updateStatus("Lỗi kết nối - Quay về lobby...");
+      this.updateStatus("Connection error - Return to lobby...");
       setTimeout(() => cc.director.loadScene("JoinRoom"), 2000);
       throw new Error("No socket connection");
     }
@@ -120,7 +120,7 @@ export default class GameController extends cc.Component {
       if (this.isInitialized) {
         this.isGameActive = true;
         this.gameStartTime = Date.now(); // NEW: Record start time
-        this.updateStatus("Game đã bắt đầu!");
+        this.updateStatus("Game started!");
         this.clearGameObjects();
       }
     });
@@ -142,21 +142,21 @@ export default class GameController extends cc.Component {
       this.removePlayerSnake(data.playerId);
 
       if (data.reason === "quit") {
-        this.updateStatus(`${data.playerName} đã thoát phòng`);
+        this.updateStatus(`${data.playerName} leaved the game.`);
         setTimeout(() => {
           if (this.isGameActive) {
-            this.updateStatus("Game đang diễn ra...");
+            this.updateStatus("The game is still active.");
           }
         }, 2000);
       }
     });
 
     this.socket.on("start-game-failed", (data) => {
-      this.updateStatus(`Không thể bắt đầu: ${data.reason}`);
+      this.updateStatus(`Cannot start: ${data.reason}`);
     });
 
     this.socket.on("quit-room-success", (data) => {
-      this.updateStatus("Đã thoát phòng thành công!");
+      this.updateStatus("Leaving success!");
       this.resetGameState();
       window.currentRoomId = null;
 
@@ -166,7 +166,7 @@ export default class GameController extends cc.Component {
     });
 
     this.socket.on("quit-room-failed", (data) => {
-      this.updateStatus(`Không thể thoát phòng: ${data.reason}`);
+      this.updateStatus(`Cannot leave the room: ${data.reason}`);
     });
 
     // NEW: Handle leaderboard data from server
@@ -223,22 +223,22 @@ export default class GameController extends cc.Component {
 
   quitRoom() {
     if (!this.socket || !this.currentRoom || !this.playerId) {
-      this.updateStatus("Không thể thoát phòng - thiếu thông tin!");
+      this.updateStatus("Cannot quit room - missing data");
       return;
     }
 
     // Confirm quit nếu đang chơi game
     if (this.isGameActive) {
       if (!this.quitConfirmTimer) {
-        this.updateStatus("Nhấn ESC lần nữa để xác nhận thoát (sẽ mất điểm)");
+        this.updateStatus("PRESS ESC AGAIN TO CONFIRM QUIT");
 
         this.quitConfirmTimer = setTimeout(() => {
           this.quitConfirmTimer = null;
           if (
             this.statusLabel &&
-            this.statusLabel.string.includes("xác nhận")
+            this.statusLabel.string.includes("CONFIRM")
           ) {
-            this.updateStatus("Game đang diễn ra...");
+            this.updateStatus("GAME IS STILL PLAYING");
           }
         }, 3000);
         return;
@@ -249,7 +249,7 @@ export default class GameController extends cc.Component {
       }
     }
 
-    this.updateStatus("Đang thoát phòng...");
+    this.updateStatus("LEAVING ROOM...");
 
     this.socket.emit("quit-room", {
       roomId: this.currentRoom,
@@ -279,7 +279,7 @@ export default class GameController extends cc.Component {
     if (myPlayer) {
       this.updateScore(myPlayer.score);
       if (!myPlayer.alive) {
-        this.updateStatus("Bạn đã chết!");
+        this.updateStatus("YOU DIED");
       }
     }
   }
@@ -424,15 +424,15 @@ export default class GameController extends cc.Component {
   this.isGameActive = false;
   
   // Update status message
-  let statusMessage = "Game kết thúc!";
+  let statusMessage = "GAME OVER!";
   if (data.winner) {
     if (data.winner.id === this.playerId) {
-      statusMessage = "🎉 Bạn đã thắng!";
+      statusMessage = "YOU WIN!";
     } else {
-      statusMessage = `👑 ${data.winner.name} thắng!`;
+      statusMessage = `👑 ${data.winner.name} WIN`;
     }
   } else {
-    statusMessage = "🤝 Game kết thúc - Hòa!";
+    statusMessage = "GAME ENDED - NO WINNER";
   }
 
   this.updateStatus(statusMessage);
