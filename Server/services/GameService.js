@@ -2,6 +2,7 @@ const FoodService = require("./FoodService");
 const PlayerService = require("./PlayerService");
 const CollisionService = require("./CollisionService");
 const RoomService = require("./RoomService");
+const LeaderboardService = require("./LeaderboardService");
 
 class GameService {
   constructor(room, io, gameController) {
@@ -96,6 +97,9 @@ class GameService {
         winner = topPlayers[0].name;
       }
     }
+
+    // Save to leaderboard (async, không block game end)
+    LeaderboardService.saveGameResults(allPlayers).catch(console.error); // ADD THIS LINE
 
     // Emit game ended event (giữ nguyên format cũ + thêm isDraw)
     this.io.to(this.room.id).emit("game-ended", {
