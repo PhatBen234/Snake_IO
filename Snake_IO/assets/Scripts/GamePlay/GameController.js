@@ -17,6 +17,19 @@ export default class GameController extends cc.Component {
   @property(cc.Label)
   statusLabel = null;
 
+  // NEW: Score table pop-up properties
+  @property(cc.Node)
+  scoreTablePopup = null;
+
+  @property(cc.Label)
+  gameResultTitle = null;
+
+  @property(cc.Node)
+  scoreTableContent = null;
+
+  @property(cc.Button)
+  backToLobbyButton = null;
+
   socket = null;
   playerId = null;
   currentRoom = null;
@@ -31,11 +44,29 @@ export default class GameController extends cc.Component {
 
   isGameActive = false;
   isInitialized = false;
-  quitConfirmTimer = null; // NEW: For quit confirmation
+  quitConfirmTimer = null;
 
   start() {
     this.resetGameState();
     this.initialize();
+    this.setupScoreTablePopup();
+  }
+
+  // NEW: Setup score table pop-up
+  setupScoreTablePopup() {
+    if (this.scoreTablePopup) {
+      this.scoreTablePopup.active = false;
+    }
+
+    if (this.backToLobbyButton) {
+      this.backToLobbyButton.node.on("click", this.onBackToLobbyClick, this);
+    }
+  }
+
+  // NEW: Handle back to lobby button click
+  onBackToLobbyClick() {
+    this.hideScoreTablePopup();
+    this.showGameEndOptions();
   }
 
   async initialize() {
@@ -93,8 +124,8 @@ export default class GameController extends cc.Component {
       "player-joined",
       "player-left",
       "start-game-failed",
-      "quit-room-success", // NEW
-      "quit-room-failed", // NEW
+      "quit-room-success",
+      "quit-room-failed",
     ].forEach((event) => this.socket.off(event));
 
     this.socket.on("game-started", (data) => {
@@ -120,7 +151,6 @@ export default class GameController extends cc.Component {
     this.socket.on("player-left", (data) => {
       this.removePlayerSnake(data.playerId);
 
-      // NEW: Show quit message
       if (data.reason === "quit") {
         this.updateStatus(`${data.playerName} has left the room`);
         setTimeout(() => {
@@ -135,7 +165,6 @@ export default class GameController extends cc.Component {
       this.updateStatus(`Cannot start game: ${data.reason}`);
     });
 
-    // NEW: Handle quit room responses
     this.socket.on("quit-room-success", (data) => {
       this.updateStatus("Successfully left the room!");
       this.resetGameState();
@@ -163,7 +192,7 @@ export default class GameController extends cc.Component {
           }
         }
 
-        // NEW: Quit room with ESC key
+        // Quit room with ESC key
         if (event.keyCode === cc.macro.KEY.escape) {
           this.quitRoom();
         }
@@ -195,14 +224,12 @@ export default class GameController extends cc.Component {
     return directions[keyCode];
   }
 
-  // NEW: Quit room method
   quitRoom() {
     if (!this.socket || !this.currentRoom || !this.playerId) {
       this.updateStatus("Cannot leave room - missing information!");
       return;
     }
 
-    // Confirm quit if currently playing game
     if (this.isGameActive) {
       if (!this.quitConfirmTimer) {
         this.updateStatus(
@@ -217,7 +244,6 @@ export default class GameController extends cc.Component {
         }, 3000);
         return;
       } else {
-        // Double ESC press confirmed
         clearTimeout(this.quitConfirmTimer);
         this.quitConfirmTimer = null;
       }
@@ -393,25 +419,208 @@ export default class GameController extends cc.Component {
     }
   }
 
+  // UPDATED: Handle game end with score table pop-up
   handleGameEnd(data) {
     this.isGameActive = false;
     this.updateStatus(
       `Game ended! ${data.winner ? `Winner: ${data.winner}` : "Draw"}`
     );
 
-    // Log scores of all players
+    // Show score table pop-up instead of logging
     if (this.gameState && this.gameState.players) {
-      console.log("=== GAME RESULTS ===");
-      this.gameState.players.forEach((player, index) => {
-        console.log(
-          `Player ${index + 1} (ID: ${player.id}): ${player.score} points`
-        );
-      });
-      console.log("==================");
+      setTimeout(() => this.showScoreTablePopup(data), 1500);
     }
 
     setTimeout(() => this.clearGameObjects(), 1500);
-    setTimeout(() => this.showGameEndOptions(), 4000);
+  }
+
+  // NEW: Show score table pop-up
+  showScoreTablePopup(gameEndData) {
+    if (!this.scoreTablePopup || !this.gameState?.players) return;
+
+    // Show the popup
+    this.scoreTablePopup.active = true;
+
+    // Set game result title
+    if (this.gameResultTitle) {
+      if (gameEndData.winner) {
+        this.gameResultTitle.string = `🎉 Winner: ${gameEndData.winner}`;
+        this.gameResultTitle.node.color = cc.Color.YELLOW;
+      } else {
+        this.gameResultTitle.string = "🤝 Game Draw!";
+        this.gameResultTitle.node.color = cc.Color.WHITE;
+      }
+    }
+
+    // Create score table
+    this.createScoreTable();
+
+    // Add entrance animation
+    this.animateScoreTableEntrance();
+  }
+
+  // NEW: Create score table content
+  createScoreTable() {
+    if (!this.scoreTableContent) return;
+
+    // Clear existing content
+    this.scoreTableContent.removeAllChildren();
+
+    // Sort players by score (descending)
+    const sortedPlayers = [...this.gameState.players].sort(
+      (a, b) => b.score - a.score
+    );
+
+    // Create header
+    const headerNode = this.createScoreTableRow(
+      "Rank",
+      "Player",
+      "Score",
+      true
+    );
+    headerNode.parent = this.scoreTableContent;
+    headerNode.y = 80;
+
+    // Create player rows
+    sortedPlayers.forEach((player, index) => {
+      const rank = index + 1;
+      const playerName = player.name || `Player ${rank}`;
+      const score = player.score.toString();
+
+      const rowNode = this.createScoreTableRow(
+        rank.toString(),
+        playerName,
+        score,
+        false
+      );
+      rowNode.parent = this.scoreTableContent;
+      rowNode.y = 80 - (index + 1) * 40; // 40px spacing between rows
+
+      // Highlight winner
+      if (
+        player.id ===
+        this.gameState.players.find(
+          (p) =>
+            p.score === Math.max(...this.gameState.players.map((p) => p.score))
+        )?.id
+      ) {
+        this.highlightWinnerRow(rowNode);
+      }
+
+      // Highlight current player
+      if (player.id === this.playerId) {
+        this.highlightCurrentPlayerRow(rowNode);
+      }
+    });
+  }
+
+  // NEW: Create a score table row
+  createScoreTableRow(rank, playerName, score, isHeader) {
+    const rowNode = new cc.Node("ScoreRow");
+    rowNode.width = 400;
+    rowNode.height = 35;
+
+    // Background
+    const bg = rowNode.addComponent(cc.Sprite);
+    if (isHeader) {
+      rowNode.color = new cc.Color(70, 70, 70);
+    } else {
+      rowNode.color = new cc.Color(40, 40, 40);
+    }
+
+    // Rank
+    const rankNode = new cc.Node("Rank");
+    rankNode.parent = rowNode;
+    rankNode.x = -150;
+    const rankLabel = rankNode.addComponent(cc.Label);
+    rankLabel.string = rank;
+    rankLabel.fontSize = isHeader ? 16 : 14;
+    rankLabel.node.color = isHeader ? cc.Color.YELLOW : cc.Color.WHITE;
+
+    // Player Name
+    const nameNode = new cc.Node("PlayerName");
+    nameNode.parent = rowNode;
+    nameNode.x = -20;
+    const nameLabel = nameNode.addComponent(cc.Label);
+    nameLabel.string = playerName;
+    nameLabel.fontSize = isHeader ? 16 : 14;
+    nameLabel.node.color = isHeader ? cc.Color.YELLOW : cc.Color.WHITE;
+
+    // Score
+    const scoreNode = new cc.Node("Score");
+    scoreNode.parent = rowNode;
+    scoreNode.x = 120;
+    const scoreLabel = scoreNode.addComponent(cc.Label);
+    scoreLabel.string = score;
+    scoreLabel.fontSize = isHeader ? 16 : 14;
+    scoreLabel.node.color = isHeader ? cc.Color.YELLOW : cc.Color.WHITE;
+
+    return rowNode;
+  }
+
+  // NEW: Highlight winner row
+  highlightWinnerRow(rowNode) {
+    // Add crown icon or special background
+    rowNode.color = new cc.Color(255, 215, 0, 100); // Golden background
+
+    // Add winner crown
+    const crownNode = new cc.Node("Crown");
+    crownNode.parent = rowNode;
+    crownNode.x = -180;
+    const crownLabel = crownNode.addComponent(cc.Label);
+    crownLabel.string = "👑";
+    crownLabel.fontSize = 20;
+
+    // Add glow effect
+    const glowAction = cc.sequence(cc.scaleTo(0.5, 1.1), cc.scaleTo(0.5, 1.0));
+    rowNode.runAction(cc.repeatForever(glowAction));
+  }
+
+  // NEW: Highlight current player row
+  highlightCurrentPlayerRow(rowNode) {
+    // Add border or different background for current player
+    rowNode.color = new cc.Color(0, 100, 200, 150); // Blue background
+
+    // Add "YOU" indicator
+    const youNode = new cc.Node("YouIndicator");
+    youNode.parent = rowNode;
+    youNode.x = 170;
+    const youLabel = youNode.addComponent(cc.Label);
+    youLabel.string = "YOU";
+    youLabel.fontSize = 12;
+    youLabel.node.color = cc.Color.CYAN;
+  }
+
+  // NEW: Animate score table entrance
+  animateScoreTableEntrance() {
+    if (!this.scoreTablePopup) return;
+
+    // Start from scale 0
+    this.scoreTablePopup.scale = 0;
+    this.scoreTablePopup.opacity = 0;
+
+    // Animate to full size with bounce effect
+    const scaleAction = cc.sequence(cc.scaleTo(0.3, 1.2), cc.scaleTo(0.2, 1.0));
+
+    const fadeAction = cc.fadeTo(0.3, 255);
+
+    this.scoreTablePopup.runAction(cc.spawn(scaleAction, fadeAction));
+  }
+
+  // NEW: Hide score table pop-up
+  hideScoreTablePopup() {
+    if (!this.scoreTablePopup) return;
+
+    // Animate out
+    const scaleAction = cc.scaleTo(0.2, 0);
+    const fadeAction = cc.fadeTo(0.2, 0);
+    const hideAction = cc.callFunc(() => {
+      this.scoreTablePopup.active = false;
+    });
+
+    const sequence = cc.sequence(cc.spawn(scaleAction, fadeAction), hideAction);
+
+    this.scoreTablePopup.runAction(sequence);
   }
 
   showGameEndOptions() {
@@ -463,10 +672,14 @@ export default class GameController extends cc.Component {
       this.scoreLabel.string = "Score: 0";
     }
 
-    // NEW: Clear quit confirmation timer
     if (this.quitConfirmTimer) {
       clearTimeout(this.quitConfirmTimer);
       this.quitConfirmTimer = null;
+    }
+
+    // Hide score table popup
+    if (this.scoreTablePopup) {
+      this.scoreTablePopup.active = false;
     }
   }
 
@@ -475,7 +688,6 @@ export default class GameController extends cc.Component {
     this.isInitialized = false;
     this.clearGameObjects();
 
-    // NEW: Clear quit confirmation timer
     if (this.quitConfirmTimer) {
       clearTimeout(this.quitConfirmTimer);
       this.quitConfirmTimer = null;
@@ -489,8 +701,8 @@ export default class GameController extends cc.Component {
         "player-joined",
         "player-left",
         "start-game-failed",
-        "quit-room-success", // NEW
-        "quit-room-failed", // NEW
+        "quit-room-success",
+        "quit-room-failed",
       ].forEach((event) => this.socket.off(event));
     }
 
