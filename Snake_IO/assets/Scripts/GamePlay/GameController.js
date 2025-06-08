@@ -1,4 +1,5 @@
 const { ccclass, property } = cc._decorator;
+const LeaderboardController = require("./LeaderboardController");
 
 @ccclass
 export default class GameController extends cc.Component {
@@ -17,6 +18,10 @@ export default class GameController extends cc.Component {
   @property(cc.Label)
   statusLabel = null;
 
+  // NEW: Leaderboard reference
+  @property(LeaderboardController)
+  leaderboardController = null;
+
   socket = null;
   playerId = null;
   currentRoom = null;
@@ -31,7 +36,8 @@ export default class GameController extends cc.Component {
 
   isGameActive = false;
   isInitialized = false;
-  quitConfirmTimer = null; // NEW: For quit confirmation
+  quitConfirmTimer = null;
+  gameStartTime = null; // NEW: Track game start time
 
   start() {
     this.resetGameState();
@@ -44,6 +50,18 @@ export default class GameController extends cc.Component {
       this.setupGameArea();
       this.setupKeyboardControls();
       this.setupSocketEvents();
+
+      // NEW: Initialize leaderboard controller if not found
+      if (!this.leaderboardController) {
+        this.leaderboardController = this.node.getComponent(LeaderboardController);
+        if (!this.leaderboardController) {
+          // Try to find it in child nodes
+          const leaderboardNode = cc.find("LeaderboardController", this.node);
+          if (leaderboardNode) {
+            this.leaderboardController = leaderboardNode.getComponent(LeaderboardController);
+          }
+        }
+      }
 
       this.isInitialized = true;
       this.updateStatus("Đã sẵn sàng - Chờ bắt đầu game...");
@@ -88,18 +106,20 @@ export default class GameController extends cc.Component {
     // Clear existing listeners
     [
       "game-started",
-      "game-state",
+      "game-state", 
       "game-ended",
       "player-joined",
       "player-left",
       "start-game-failed",
-      "quit-room-success", // NEW
-      "quit-room-failed", // NEW
+      "quit-room-success",
+      "quit-room-failed",
+      "leaderboard-data", // NEW: Listen for leaderboard updates
     ].forEach((event) => this.socket.off(event));
 
     this.socket.on("game-started", (data) => {
       if (this.isInitialized) {
         this.isGameActive = true;
+        this.gameStartTime = Date.now(); // NEW: Record start time
         this.updateStatus("Game đã bắt đầu!");
         this.clearGameObjects();
       }
@@ -112,6 +132,7 @@ export default class GameController extends cc.Component {
       }
     });
 
+    // UPDATED: Enhanced game-ended handler with leaderboard
     this.socket.on("game-ended", (data) => {
       this.isGameActive = false;
       this.handleGameEnd(data);
@@ -120,7 +141,6 @@ export default class GameController extends cc.Component {
     this.socket.on("player-left", (data) => {
       this.removePlayerSnake(data.playerId);
 
-      // NEW: Show quit message
       if (data.reason === "quit") {
         this.updateStatus(`${data.playerName} đã thoát phòng`);
         setTimeout(() => {
@@ -135,7 +155,6 @@ export default class GameController extends cc.Component {
       this.updateStatus(`Không thể bắt đầu: ${data.reason}`);
     });
 
-    // NEW: Handle quit room responses
     this.socket.on("quit-room-success", (data) => {
       this.updateStatus("Đã thoát phòng thành công!");
       this.resetGameState();
@@ -148,6 +167,13 @@ export default class GameController extends cc.Component {
 
     this.socket.on("quit-room-failed", (data) => {
       this.updateStatus(`Không thể thoát phòng: ${data.reason}`);
+    });
+
+    // NEW: Handle leaderboard data from server
+    this.socket.on("leaderboard-data", (data) => {
+      if (this.leaderboardController && data.leaderboard) {
+        this.leaderboardController.showLeaderboard(data.leaderboard, data);
+      }
     });
   }
 
@@ -163,7 +189,7 @@ export default class GameController extends cc.Component {
           }
         }
 
-        // NEW: Quit room với phím ESC
+        // Quit room với phím ESC
         if (event.keyCode === cc.macro.KEY.escape) {
           this.quitRoom();
         }
@@ -195,7 +221,6 @@ export default class GameController extends cc.Component {
     return directions[keyCode];
   }
 
-  // NEW: Quit room method
   quitRoom() {
     if (!this.socket || !this.currentRoom || !this.playerId) {
       this.updateStatus("Không thể thoát phòng - thiếu thông tin!");
@@ -394,26 +419,38 @@ export default class GameController extends cc.Component {
     }
   }
 
+  // End game and show results
   handleGameEnd(data) {
-    this.isGameActive = false;
-    this.updateStatus(
-      `Game kết thúc! ${data.winner ? `Người thắng: ${data.winner}` : "Hòa"}`
-    );
-
-    // Log điểm của tất cả players
-    if (this.gameState && this.gameState.players) {
-      console.log("=== KẾT QUẢ GAME ===");
-      this.gameState.players.forEach((player, index) => {
-        console.log(
-          `Player ${index + 1} (ID: ${player.id}): ${player.score} điểm`
-        );
-      });
-      console.log("==================");
+  this.isGameActive = false;
+  
+  // Update status message
+  let statusMessage = "Game kết thúc!";
+  if (data.winner) {
+    if (data.winner.id === this.playerId) {
+      statusMessage = "🎉 Bạn đã thắng!";
+    } else {
+      statusMessage = `👑 ${data.winner.name} thắng!`;
     }
-
-    setTimeout(() => this.clearGameObjects(), 1500);
-    setTimeout(() => this.showGameEndOptions(), 4000);
+  } else {
+    statusMessage = "🤝 Game kết thúc - Hòa!";
   }
+
+  this.updateStatus(statusMessage);
+
+  // Clear game objects after a short delay
+  setTimeout(() => this.clearGameObjects(), 1500);
+
+  // Show leaderboard - ĐƠN GIẢN HÓA
+  setTimeout(() => {
+    if (this.leaderboardController && data.leaderboard) {
+      // Chỉ cần truyền data.leaderboard
+      this.leaderboardController.showLeaderboard(data.leaderboard);
+    } else {
+      // Fallback: return to lobby if no leaderboard controller
+      this.showGameEndOptions();
+    }
+  }, 3000);
+}
 
   showGameEndOptions() {
     this.resetGameState();
@@ -458,13 +495,13 @@ export default class GameController extends cc.Component {
     this.gameState = null;
     this.isGameActive = false;
     this.isInitialized = false;
+    this.gameStartTime = null; // NEW: Reset start time
     this.clearGameObjects();
 
     if (this.scoreLabel) {
       this.scoreLabel.string = "Score: 0";
     }
 
-    // NEW: Clear quit confirmation timer
     if (this.quitConfirmTimer) {
       clearTimeout(this.quitConfirmTimer);
       this.quitConfirmTimer = null;
@@ -476,7 +513,6 @@ export default class GameController extends cc.Component {
     this.isInitialized = false;
     this.clearGameObjects();
 
-    // NEW: Clear quit confirmation timer
     if (this.quitConfirmTimer) {
       clearTimeout(this.quitConfirmTimer);
       this.quitConfirmTimer = null;
@@ -490,8 +526,9 @@ export default class GameController extends cc.Component {
         "player-joined",
         "player-left",
         "start-game-failed",
-        "quit-room-success", // NEW
-        "quit-room-failed", // NEW
+        "quit-room-success",
+        "quit-room-failed",
+        "leaderboard-data", // NEW
       ].forEach((event) => this.socket.off(event));
     }
 
