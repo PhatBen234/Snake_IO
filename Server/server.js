@@ -6,6 +6,7 @@ const { Server } = require("socket.io");
 
 const socketHandler = require("./sockets/socketHandler");
 const firebaseService = require("./db/firebaseService");
+const leaderboardRoutes = require("./routes/leaderboard"); // ADD THIS LINE
 
 const app = express();
 
@@ -19,6 +20,9 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 firebaseService.init();
+
+// API Routes
+app.use("/api/leaderboard", leaderboardRoutes); // ADD THIS LINE
 
 const server = http.createServer(app);
 

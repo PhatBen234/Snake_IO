@@ -2,6 +2,7 @@ const FoodService = require("./FoodService");
 const PlayerService = require("./PlayerService");
 const CollisionService = require("./CollisionService");
 const RoomService = require("./RoomService");
+const LeaderboardService = require("./LeaderboardService");
 
 class GameService {
   constructor(room, io, gameController) {
@@ -77,51 +78,39 @@ class GameService {
     this.stop();
 
     const allPlayers = Array.from(this.room.players.values());
-    
-    // Tạo leaderboard data - sắp xếp theo điểm số giảm dần
-    const leaderboard = allPlayers
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3) // Chỉ lấy top 3
-      .map((player, index) => ({
-        rank: index + 1,
-        id: player.id,
-        name: player.name,
-        score: player.score,
-        alive: player.alive
-      }));
 
     let winner = null;
+    let isDraw = false;
+
     if (allPlayers.length > 0) {
-      winner = allPlayers.reduce((prev, current) => {
-        return prev.score > current.score ? prev : current;
-      });
+      // Tìm điểm cao nhất
+      const maxScore = Math.max(...allPlayers.map((p) => p.score));
+
+      // Tìm tất cả người có điểm cao nhất
+      const topPlayers = allPlayers.filter((p) => p.score === maxScore);
+
+      // CHECK DRAW: Nếu có nhiều hơn 1 người cùng điểm cao nhất
+      if (topPlayers.length > 1) {
+        isDraw = true;
+        winner = null;
+      } else {
+        winner = topPlayers[0].name;
+      }
     }
 
-    const gameResult = {
-      winner: winner ? {
-        id: winner.id,
-        name: winner.name,
-        score: winner.score
-      } : null,
-      leaderboard: leaderboard,
-      totalPlayers: allPlayers.length,
-      gameTime: Date.now() - this.room.createdAt,
+    // Save to leaderboard (async, không block game end)
+    LeaderboardService.saveGameResults(allPlayers).catch(console.error); // ADD THIS LINE
+
+    // Emit game ended event (giữ nguyên format cũ + thêm isDraw)
+    this.io.to(this.room.id).emit("game-ended", {
+      winner: winner,
+      isDraw: isDraw, // <- CHỈ THÊM DÒNG NÀY
       scores: allPlayers.map((p) => ({
         id: p.id,
         name: p.name,
         score: p.score,
         status: p.alive ? "alive" : "dead",
       })),
-    };
-
-    // Emit game ended event với leaderboard data
-    this.io.to(this.room.id).emit("game-ended", gameResult);
-
-    // Log kết quả game
-    console.log(`🏁 Game ${this.room.id} ended:`, {
-      winner: winner ? winner.name : "No winner",
-      topScores: leaderboard.map(p => `${p.name}: ${p.score}`),
-      totalPlayers: allPlayers.length
     });
   }
 
@@ -147,22 +136,6 @@ class GameService {
         setTimeout(() => this.endGame(), 1000);
       }
     }
-  }
-
-  // NEW: Method to get current leaderboard (for mid-game requests)
-  getCurrentLeaderboard() {
-    const allPlayers = Array.from(this.room.players.values());
-    
-    return allPlayers
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
-      .map((player, index) => ({
-        rank: index + 1,
-        id: player.id,
-        name: player.name,
-        score: player.score,
-        alive: player.alive
-      }));
   }
 }
 
