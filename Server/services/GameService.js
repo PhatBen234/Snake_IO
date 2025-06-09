@@ -83,28 +83,33 @@ class GameService {
     let isDraw = false;
 
     if (allPlayers.length > 0) {
-      // Tìm điểm cao nhất
-      const maxScore = Math.max(...allPlayers.map((p) => p.score));
+      // Tìm điểm cao nhất (chỉ tính những người có điểm > 0)
+      const validPlayers = allPlayers.filter((p) => p.score > 0);
 
-      // Tìm tất cả người có điểm cao nhất
-      const topPlayers = allPlayers.filter((p) => p.score === maxScore);
-
-      // CHECK DRAW: Nếu có nhiều hơn 1 người cùng điểm cao nhất
-      if (topPlayers.length > 1) {
+      if (validPlayers.length === 0) {
+        // Tất cả đều 0 điểm hoặc AFK
         isDraw = true;
         winner = null;
       } else {
-        winner = topPlayers[0].name;
+        const maxScore = Math.max(...validPlayers.map((p) => p.score));
+        const topPlayers = validPlayers.filter((p) => p.score === maxScore);
+
+        if (topPlayers.length > 1) {
+          isDraw = true;
+          winner = null;
+        } else {
+          winner = topPlayers[0].name;
+        }
       }
     }
 
     // Save to leaderboard (async, không block game end)
-    LeaderboardService.saveGameResults(allPlayers).catch(console.error); // ADD THIS LINE
+    LeaderboardService.saveGameResults(allPlayers).catch(console.error);
 
-    // Emit game ended event (giữ nguyên format cũ + thêm isDraw)
+    // Emit game ended event
     this.io.to(this.room.id).emit("game-ended", {
       winner: winner,
-      isDraw: isDraw, // <- CHỈ THÊM DÒNG NÀY
+      isDraw: isDraw,
       scores: allPlayers.map((p) => ({
         id: p.id,
         name: p.name,
@@ -130,11 +135,26 @@ class GameService {
       player.score = 0;
       player.alive = false;
 
+      console.log(`Player ${player.name} quit - Score set to 0`); // Debug log
+
       // Check if game should end after this quit
       const activePlayers = RoomService.getActivePlayers(this.room);
       if (activePlayers.length <= 1 && this.room.players.size > 1) {
-        setTimeout(() => this.endGame(), 1000);
+        // Delay để đảm bảo score đã được cập nhật
+        setTimeout(() => this.endGame(), 100);
       }
+    }
+  }
+
+  // THÊM METHOD MỚI: Handle player quit và end game ngay lập tức
+  handlePlayerQuitAndCheckEnd(playerId) {
+    this.handlePlayerQuit(playerId);
+
+    // Kiểm tra ngay sau khi quit
+    const activePlayers = RoomService.getActivePlayers(this.room);
+    if (activePlayers.length <= 1 && this.room.players.size > 1) {
+      // End game ngay lập tức với điểm số đã được cập nhật
+      this.endGame();
     }
   }
 }

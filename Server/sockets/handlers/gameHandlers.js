@@ -57,7 +57,9 @@ function setupGameHandlers(socket, controllers, io) {
 
     // Handle quit based on game state
     if (controller.room.status === GAME_CONSTANTS.ROOM_STATUS.PLAYING) {
-      controller.gameService.handlePlayerQuit(playerId);
+      // QUAN TRỌNG: Sử dụng method mới để đảm bảo điểm được set trước khi tính winner
+      controller.gameService.handlePlayerQuitAndCheckEnd(playerId);
+
       socket.to(roomId).emit("player-left", {
         playerId,
         playerName: player.name,
@@ -79,6 +81,43 @@ function setupGameHandlers(socket, controllers, io) {
       // Clean up empty room
       if (controller.room.players.size === 0) {
         controllers.delete(roomId);
+      }
+    }
+  });
+
+  // THÊM: Handle disconnect event (khi người chơi đóng browser/mất mạng)
+  socket.on("disconnect", () => {
+    // Tìm player trong tất cả các rooms
+    for (const [roomId, controller] of controllers.entries()) {
+      const player = controller.room.players.get(socket.id);
+      if (player) {
+        console.log(`Player ${player.name} disconnected from room ${roomId}`);
+
+        if (controller.room.status === GAME_CONSTANTS.ROOM_STATUS.PLAYING) {
+          // Xử lý disconnect như quit trong game
+          controller.gameService.handlePlayerQuitAndCheckEnd(socket.id);
+
+          socket.to(roomId).emit("player-left", {
+            playerId: socket.id,
+            playerName: player.name,
+            reason: "disconnect",
+          });
+        } else {
+          // Game chưa bắt đầu - xóa player khỏi room
+          controller.room.players.delete(socket.id);
+          socket.to(roomId).emit("player-left", {
+            playerId: socket.id,
+            playerName: player.name,
+            reason: "disconnect",
+          });
+        }
+
+        // Clean up empty room
+        if (controller.room.players.size === 0) {
+          controllers.delete(roomId);
+        }
+
+        break; // Player chỉ có thể ở trong 1 room
       }
     }
   });
