@@ -148,10 +148,26 @@ export default class GameController extends cc.Component {
       this.handleGameEnd(data);
     });
 
+    // CẢI THIỆN: Cập nhật gameState khi có player quit
     this.socket.on("player-left", (data) => {
       this.removePlayerSnake(data.playerId);
 
-      if (data.reason === "quit") {
+      // QUAN TRỌNG: Cập nhật điểm số của player quit về 0 trong gameState
+      if (this.gameState && this.gameState.players) {
+        const playerIndex = this.gameState.players.findIndex(
+          (p) => p.id === data.playerId
+        );
+        if (playerIndex !== -1) {
+          // Cập nhật điểm số về 0 cho player đã quit
+          this.gameState.players[playerIndex].score = 0;
+          this.gameState.players[playerIndex].alive = false;
+          console.log(
+            `Updated local gameState for quit player ${data.playerId}: score = 0`
+          );
+        }
+      }
+
+      if (data.reason === "quit" || data.reason === "disconnect") {
         this.updateStatus(`${data.playerName} has left the room`);
         setTimeout(() => {
           if (this.isGameActive) {
@@ -426,8 +442,21 @@ export default class GameController extends cc.Component {
       `Game ended! ${data.winner ? `Winner: ${data.winner}` : "Draw"}`
     );
 
-    // Show leaderboard
-    if (this.gameState && this.gameState.players) {
+    // CẬP NHẬT: Sử dụng dữ liệu từ server thay vì gameState local
+    if (data.scores && data.scores.length > 0) {
+      // Cập nhật gameState với dữ liệu chính xác từ server
+      if (this.gameState) {
+        this.gameState.players = data.scores.map((scoreData) => ({
+          id: scoreData.id,
+          name: scoreData.name,
+          score: scoreData.score,
+          alive: scoreData.status === "alive",
+        }));
+      }
+
+      setTimeout(() => this.showLeaderboard(), 1500);
+    } else if (this.gameState && this.gameState.players) {
+      // Fallback sử dụng gameState hiện tại
       setTimeout(() => this.showLeaderboard(), 1500);
     }
 
@@ -436,15 +465,26 @@ export default class GameController extends cc.Component {
 
   // Simplified leaderboard display
   showLeaderboard() {
-    if (!this.scoreTablePopup || !this.scoreTableContent || !this.scoreLabelPrefab) {
+    if (
+      !this.scoreTablePopup ||
+      !this.scoreTableContent ||
+      !this.scoreLabelPrefab
+    ) {
       console.error("Missing leaderboard components!");
       return;
     }
 
-    if (!this.gameState?.players) {
+    let playersData = [];
+
+    // Ưu tiên sử dụng dữ liệu từ gameState
+    if (this.gameState?.players) {
+      playersData = this.gameState.players;
+    } else {
       console.error("No players data available!");
       return;
     }
+
+    console.log("Leaderboard data:", playersData); // Debug log
 
     // Show the popup
     this.scoreTablePopup.active = true;
@@ -453,9 +493,11 @@ export default class GameController extends cc.Component {
     this.scoreTableContent.removeAllChildren();
 
     // Sort players by score (descending) and get top 3
-    const top3Players = [...this.gameState.players]
+    const top3Players = [...playersData]
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
+
+    console.log("Top 3 players for leaderboard:", top3Players); // Debug log
 
     // Create score labels for top 3 players
     top3Players.forEach((player, index) => {
@@ -469,29 +511,28 @@ export default class GameController extends cc.Component {
   // Create individual player score label
   createPlayerScoreLabel(player, index) {
     const rank = index + 1;
-    const playerName = player.name || `Player_${player.id?.substring(0, 4) || rank}`;
-    
+    const playerName =
+      player.name || `Player_${player.id?.substring(0, 4) || rank}`;
+
     // Create score label from prefab
     const scoreLabelNode = cc.instantiate(this.scoreLabelPrefab);
     scoreLabelNode.parent = this.scoreTableContent;
-    
+
     // Position the labels vertically
-    scoreLabelNode.y = 100 - (index * 80);
-    
+    scoreLabelNode.y = 100 - index * 80;
+
     // Find the label component
     let labelComponent = this.findLabelComponent(scoreLabelNode);
-    
+
     if (labelComponent) {
       // Set the text content with rank indicator
       const displayText = `${playerName}\nScore: ${player.score}`;
       labelComponent.string = displayText;
-      
+
       // Set rank colors
       labelComponent.node.color = this.getRankColor(rank);
-      
-     
     }
-    
+
     // Add entrance animation
     this.animateScoreLabel(scoreLabelNode, index);
   }
@@ -500,27 +541,27 @@ export default class GameController extends cc.Component {
   findLabelComponent(node) {
     // Check root node first
     let labelComponent = node.getComponent(cc.Label);
-    
+
     if (!labelComponent) {
       // Search in children recursively
       const findInChildren = (parent) => {
         for (let child of parent.children) {
           const label = child.getComponent(cc.Label);
           if (label) return label;
-          
+
           const childResult = findInChildren(child);
           if (childResult) return childResult;
         }
         return null;
       };
-      
+
       labelComponent = findInChildren(node);
     }
-    
+
     return labelComponent;
   }
 
-    // Get rank indicator emoji/text
+  // Get rank indicator emoji/text
   //   getRankIndicator(rank) {
   //     switch (rank) {
   //       case 1:
@@ -554,12 +595,12 @@ export default class GameController extends cc.Component {
   //   const youIndicator = new cc.Node("YouIndicator");
   //   youIndicator.parent = scoreLabelNode;
   //   youIndicator.x = 120;
-    
+
   //   const youLabel = youIndicator.addComponent(cc.Label);
   //   youLabel.string = "BẠN";
   //   youLabel.fontSize = 16;
   //   youLabel.node.color = cc.Color.CYAN;
-    
+
   //   // Add pulsing effect
   //   const pulseAction = cc.sequence(
   //     cc.scaleTo(0.8, 1.1),
@@ -573,19 +614,16 @@ export default class GameController extends cc.Component {
     // Start from the right and fade in
     labelNode.x = 300;
     labelNode.opacity = 0;
-    
+
     // Stagger animations
     const delay = index * 0.3;
-    
+
     const moveAction = cc.moveTo(0.5, cc.v2(0, labelNode.y));
     const fadeAction = cc.fadeTo(0.5, 255);
     const delayAction = cc.delayTime(delay);
-    
-    const sequence = cc.sequence(
-      delayAction,
-      cc.spawn(moveAction, fadeAction)
-    );
-    
+
+    const sequence = cc.sequence(delayAction, cc.spawn(moveAction, fadeAction));
+
     labelNode.runAction(sequence);
   }
 
@@ -598,10 +636,7 @@ export default class GameController extends cc.Component {
     this.scoreTablePopup.opacity = 0;
 
     // Animate to full size with bounce effect
-    const scaleAction = cc.sequence(
-      cc.scaleTo(0.3, 1.2), 
-      cc.scaleTo(0.2, 1.0)
-    );
+    const scaleAction = cc.sequence(cc.scaleTo(0.3, 1.2), cc.scaleTo(0.2, 1.0));
     const fadeAction = cc.fadeTo(0.3, 255);
 
     this.scoreTablePopup.runAction(cc.spawn(scaleAction, fadeAction));
