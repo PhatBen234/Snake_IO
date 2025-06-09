@@ -1,10 +1,10 @@
 const Food = require("../models/Food");
-const PlayerController = require("../controllers/PlayerController");
 const { v4: uuidv4 } = require("uuid");
+const GAME_CONSTANTS = require("../config/constants");
 
 class FoodService {
   static spawnFood(room) {
-    while (room.foods.size < room.config.foodCount) {
+    while (room.foods.size < GAME_CONSTANTS.FOOD_COUNT) {
       const id = uuidv4();
       const position = this.getRandomPosition(room.config);
       const food = new Food(id, position);
@@ -14,7 +14,7 @@ class FoodService {
 
   static getRandomPosition(config) {
     const { width, height } = config;
-    const padding = 100; // Tăng từ 20 lên 100 để thu hẹp vùng spawn
+    const padding = GAME_CONSTANTS.FOOD_SPAWN_PADDING;
     const x = Math.floor(Math.random() * (width - padding * 2)) + padding;
     const y = Math.floor(Math.random() * (height - padding * 2)) + padding;
     return { x, y };
@@ -29,13 +29,17 @@ class FoodService {
         Math.pow(headPosition.y - food.position.y, 2)
     );
 
-    const collisionThreshold = 15;
-    return distance < collisionThreshold;
+    return distance < GAME_CONSTANTS.COLLISION_THRESHOLD;
   }
 
   static consumeFood(player, food) {
-    PlayerController.setFoodAlive(food, false);
-    PlayerController.growPlayer(player, food.value);
+    food.alive = false;
+    this.growPlayer(player, food.value);
+  }
+
+  static growPlayer(player, amount) {
+    const PlayerService = require("./PlayerService");
+    PlayerService.growPlayer(player, amount);
   }
 }
 
