@@ -90,12 +90,9 @@ export default class Snake extends cc.Component {
           // Fallback cuối cùng: sử dụng graphics
           const graphics = segmentNode.addComponent(cc.Graphics);
           graphics.fillColor = cc.Color.WHITE;
-          graphics.rect(
-            -this.gridSize / 2,
-            -this.gridSize / 2,
-            this.gridSize,
-            this.gridSize
-          );
+          // Thu nhỏ kích thước thân rắn
+          const bodySize = this.gridSize * 0.7; // Giảm 30% so với đầu
+          graphics.rect(-bodySize / 2, -bodySize / 2, bodySize, bodySize);
           graphics.fill();
         }
       }
@@ -105,11 +102,20 @@ export default class Snake extends cc.Component {
 
     // Set màu sắc
     segmentNode.color = this.getPlayerColor(this.playerId, isHead);
-    segmentNode.width = this.gridSize;
-    segmentNode.height = this.gridSize;
+
+    // Set kích thước khác nhau cho đầu và thân
+    if (isHead) {
+      segmentNode.width = this.gridSize;
+      segmentNode.height = this.gridSize;
+    } else {
+      // Thu nhỏ thân rắn
+      const bodySize = this.gridSize * 0.7; // Giảm 30% so với đầu
+      segmentNode.width = bodySize;
+      segmentNode.height = bodySize;
+    }
 
     // Set vị trí - điều chỉnh vị trí thân để không trùng với đầu
-    const worldPos = this.gridToWorldPosition(segmentData, isHead);
+    const worldPos = this.gridToWorldPosition(segmentData, isHead, index);
     segmentNode.setPosition(worldPos.x, worldPos.y);
 
     this.segments.push(segmentNode);
@@ -148,17 +154,39 @@ export default class Snake extends cc.Component {
     headNode.angle = angle;
   }
 
-  gridToWorldPosition(gridPos, isHead = false) {
+  gridToWorldPosition(gridPos, isHead = false, segmentIndex = 0) {
     const canvasWidth = 960;
     const canvasHeight = 640;
 
     let worldX = gridPos.x - canvasWidth / 2;
     let worldY = canvasHeight / 2 - gridPos.y;
 
-    // Điều chỉnh vị trí cho thân để không trùng với đầu
-    if (!isHead) {
-      // Dịch chuyển thân xuống một chút để tránh trùng lặp
-      worldY -= 2; // Dịch xuống 2 pixel
+    // Chỉ điều chỉnh vị trí cho segment thân đầu tiên (index = 1) để không trùng với đầu
+    // Các segment khác giữ nguyên vị trí để tránh bị lệch ở khúc cua
+    if (!isHead && segmentIndex === 1) {
+      // Tính hướng di chuyển từ đầu rắn đến segment đầu tiên
+      const headSegment = this.playerData.body[0];
+      const firstBodySegment = this.playerData.body[1];
+
+      if (headSegment && firstBodySegment) {
+        const deltaX = headSegment.x - firstBodySegment.x;
+        const deltaY = headSegment.y - firstBodySegment.y;
+
+        // Dịch chuyển segment thân đầu tiên theo hướng ngược lại với hướng di chuyển
+        if (deltaX > 0) {
+          // Đầu đi qua phải, dịch thân qua trái một chút
+          worldX -= 2;
+        } else if (deltaX < 0) {
+          // Đầu đi qua trái, dịch thân qua phải một chút
+          worldX += 2;
+        } else if (deltaY > 0) {
+          // Đầu đi lên, dịch thân xuống một chút
+          worldY -= 2;
+        } else if (deltaY < 0) {
+          // Đầu đi xuống, dịch thân lên một chút
+          worldY += 2;
+        }
+      }
     }
 
     return { x: worldX, y: worldY };
@@ -170,10 +198,11 @@ export default class Snake extends cc.Component {
       canvas.width = canvas.height = 32;
       const ctx = canvas.getContext("2d");
 
-      // Tạo hình tròn cho thân rắn thay vì hình vuông
+      // Tạo hình tròn nhỏ hơn cho thân rắn
       ctx.fillStyle = "white";
       ctx.beginPath();
-      ctx.arc(16, 16, 14, 0, 2 * Math.PI);
+      // Giảm bán kính từ 14 xuống 10 để thu nhỏ thân
+      ctx.arc(16, 16, 10, 0, 2 * Math.PI);
       ctx.fill();
 
       const img = new Image();
