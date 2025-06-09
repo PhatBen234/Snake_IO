@@ -17,15 +17,15 @@ export default class GameController extends cc.Component {
   @property(cc.Label)
   statusLabel = null;
 
-  // NEW: Score table pop-up properties
+  // Simplified leaderboard properties
   @property(cc.Node)
   scoreTablePopup = null;
 
-  @property(cc.Label)
-  gameResultTitle = null;
-
   @property(cc.Node)
   scoreTableContent = null;
+
+  @property(cc.Prefab)
+  scoreLabelPrefab = null;
 
   @property(cc.Button)
   backToLobbyButton = null;
@@ -52,7 +52,7 @@ export default class GameController extends cc.Component {
     this.setupScoreTablePopup();
   }
 
-  // NEW: Setup score table pop-up
+  // Setup score table pop-up
   setupScoreTablePopup() {
     if (this.scoreTablePopup) {
       this.scoreTablePopup.active = false;
@@ -63,7 +63,7 @@ export default class GameController extends cc.Component {
     }
   }
 
-  // NEW: Handle back to lobby button click
+  // Handle back to lobby button click
   onBackToLobbyClick() {
     this.hideScoreTablePopup();
     this.showGameEndOptions();
@@ -419,179 +419,177 @@ export default class GameController extends cc.Component {
     }
   }
 
-  // UPDATED: Handle game end with score table pop-up
+  // Simplified game end handler
   handleGameEnd(data) {
     this.isGameActive = false;
     this.updateStatus(
       `Game ended! ${data.winner ? `Winner: ${data.winner}` : "Draw"}`
     );
 
-    // Show score table pop-up instead of logging
+    // Show leaderboard
     if (this.gameState && this.gameState.players) {
-      setTimeout(() => this.showScoreTablePopup(data), 1500);
+      setTimeout(() => this.showLeaderboard(), 1500);
     }
 
     setTimeout(() => this.clearGameObjects(), 1500);
   }
 
-  // NEW: Show score table pop-up
-  showScoreTablePopup(gameEndData) {
-    if (!this.scoreTablePopup || !this.gameState?.players) return;
+  // Simplified leaderboard display
+  showLeaderboard() {
+    if (!this.scoreTablePopup || !this.scoreTableContent || !this.scoreLabelPrefab) {
+      console.error("Missing leaderboard components!");
+      return;
+    }
+
+    if (!this.gameState?.players) {
+      console.error("No players data available!");
+      return;
+    }
 
     // Show the popup
     this.scoreTablePopup.active = true;
 
-    // Set game result title
-    if (this.gameResultTitle) {
-      if (gameEndData.winner) {
-        this.gameResultTitle.string = `🎉 Winner: ${gameEndData.winner}`;
-        this.gameResultTitle.node.color = cc.Color.YELLOW;
-      } else {
-        this.gameResultTitle.string = "🤝 Game Draw!";
-        this.gameResultTitle.node.color = cc.Color.WHITE;
-      }
-    }
+    // Clear existing content
+    this.scoreTableContent.removeAllChildren();
 
-    // Create score table
-    this.createScoreTable();
+    // Sort players by score (descending) and get top 3
+    const top3Players = [...this.gameState.players]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+    // Create score labels for top 3 players
+    top3Players.forEach((player, index) => {
+      this.createPlayerScoreLabel(player, index);
+    });
 
     // Add entrance animation
     this.animateScoreTableEntrance();
   }
 
-  // NEW: Create score table content
-  createScoreTable() {
-    if (!this.scoreTableContent) return;
-
-    // Clear existing content
-    this.scoreTableContent.removeAllChildren();
-
-    // Sort players by score (descending)
-    const sortedPlayers = [...this.gameState.players].sort(
-      (a, b) => b.score - a.score
-    );
-
-    // Create header
-    const headerNode = this.createScoreTableRow(
-      "Rank",
-      "Player",
-      "Score",
-      true
-    );
-    headerNode.parent = this.scoreTableContent;
-    headerNode.y = 80;
-
-    // Create player rows
-    sortedPlayers.forEach((player, index) => {
-      const rank = index + 1;
-      const playerName = player.name || `Player ${rank}`;
-      const score = player.score.toString();
-
-      const rowNode = this.createScoreTableRow(
-        rank.toString(),
-        playerName,
-        score,
-        false
-      );
-      rowNode.parent = this.scoreTableContent;
-      rowNode.y = 80 - (index + 1) * 40; // 40px spacing between rows
-
-      // Highlight winner
-      if (
-        player.id ===
-        this.gameState.players.find(
-          (p) =>
-            p.score === Math.max(...this.gameState.players.map((p) => p.score))
-        )?.id
-      ) {
-        this.highlightWinnerRow(rowNode);
-      }
-
-      // Highlight current player
-      if (player.id === this.playerId) {
-        this.highlightCurrentPlayerRow(rowNode);
-      }
-    });
-  }
-
-  // NEW: Create a score table row
-  createScoreTableRow(rank, playerName, score, isHeader) {
-    const rowNode = new cc.Node("ScoreRow");
-    rowNode.width = 400;
-    rowNode.height = 35;
-
-    // Background
-    const bg = rowNode.addComponent(cc.Sprite);
-    if (isHeader) {
-      rowNode.color = new cc.Color(70, 70, 70);
-    } else {
-      rowNode.color = new cc.Color(40, 40, 40);
+  // Create individual player score label
+  createPlayerScoreLabel(player, index) {
+    const rank = index + 1;
+    const playerName = player.name || `Player_${player.id?.substring(0, 4) || rank}`;
+    
+    // Create score label from prefab
+    const scoreLabelNode = cc.instantiate(this.scoreLabelPrefab);
+    scoreLabelNode.parent = this.scoreTableContent;
+    
+    // Position the labels vertically
+    scoreLabelNode.y = 100 - (index * 80);
+    
+    // Find the label component
+    let labelComponent = this.findLabelComponent(scoreLabelNode);
+    
+    if (labelComponent) {
+      // Set the text content with rank indicator
+      const displayText = `${playerName}\nScore: ${player.score}`;
+      labelComponent.string = displayText;
+      
+      // Set rank colors
+      labelComponent.node.color = this.getRankColor(rank);
+      
+     
     }
-
-    // Rank
-    const rankNode = new cc.Node("Rank");
-    rankNode.parent = rowNode;
-    rankNode.x = -150;
-    const rankLabel = rankNode.addComponent(cc.Label);
-    rankLabel.string = rank;
-    rankLabel.fontSize = isHeader ? 16 : 14;
-    rankLabel.node.color = isHeader ? cc.Color.YELLOW : cc.Color.WHITE;
-
-    // Player Name
-    const nameNode = new cc.Node("PlayerName");
-    nameNode.parent = rowNode;
-    nameNode.x = -20;
-    const nameLabel = nameNode.addComponent(cc.Label);
-    nameLabel.string = playerName;
-    nameLabel.fontSize = isHeader ? 16 : 14;
-    nameLabel.node.color = isHeader ? cc.Color.YELLOW : cc.Color.WHITE;
-
-    // Score
-    const scoreNode = new cc.Node("Score");
-    scoreNode.parent = rowNode;
-    scoreNode.x = 120;
-    const scoreLabel = scoreNode.addComponent(cc.Label);
-    scoreLabel.string = score;
-    scoreLabel.fontSize = isHeader ? 16 : 14;
-    scoreLabel.node.color = isHeader ? cc.Color.YELLOW : cc.Color.WHITE;
-
-    return rowNode;
+    
+    // Add entrance animation
+    this.animateScoreLabel(scoreLabelNode, index);
   }
 
-  // NEW: Highlight winner row
-  highlightWinnerRow(rowNode) {
-    // Add crown icon or special background
-    rowNode.color = new cc.Color(255, 215, 0, 100); // Golden background
-
-    // Add winner crown
-    const crownNode = new cc.Node("Crown");
-    crownNode.parent = rowNode;
-    crownNode.x = -180;
-    const crownLabel = crownNode.addComponent(cc.Label);
-    crownLabel.string = "👑";
-    crownLabel.fontSize = 20;
-
-    // Add glow effect
-    const glowAction = cc.sequence(cc.scaleTo(0.5, 1.1), cc.scaleTo(0.5, 1.0));
-    rowNode.runAction(cc.repeatForever(glowAction));
+  // Find label component in node or its children
+  findLabelComponent(node) {
+    // Check root node first
+    let labelComponent = node.getComponent(cc.Label);
+    
+    if (!labelComponent) {
+      // Search in children recursively
+      const findInChildren = (parent) => {
+        for (let child of parent.children) {
+          const label = child.getComponent(cc.Label);
+          if (label) return label;
+          
+          const childResult = findInChildren(child);
+          if (childResult) return childResult;
+        }
+        return null;
+      };
+      
+      labelComponent = findInChildren(node);
+    }
+    
+    return labelComponent;
   }
 
-  // NEW: Highlight current player row
-  highlightCurrentPlayerRow(rowNode) {
-    // Add border or different background for current player
-    rowNode.color = new cc.Color(0, 100, 200, 150); // Blue background
+    // Get rank indicator emoji/text
+  //   getRankIndicator(rank) {
+  //     switch (rank) {
+  //       case 1:
+  //         return "🥇"; // Gold medal
+  //       case 2:
+  //         return "🥈"; // Silver medal
+  //       case 3:
+  //         return "🥉"; // Bronze medal
+  //       default:
+  //         return `${rank}.`;
+  //     }
+  // }
 
-    // Add "YOU" indicator
-    const youNode = new cc.Node("YouIndicator");
-    youNode.parent = rowNode;
-    youNode.x = 170;
-    const youLabel = youNode.addComponent(cc.Label);
-    youLabel.string = "YOU";
-    youLabel.fontSize = 12;
-    youLabel.node.color = cc.Color.CYAN;
+  // Get color for different ranks
+  getRankColor(rank) {
+    switch (rank) {
+      case 1:
+        return cc.Color.YELLOW; // Gold
+      case 2:
+        return new cc.Color(192, 192, 192); // Silver
+      case 3:
+        return new cc.Color(205, 127, 50); // Bronze
+      default:
+        return cc.Color.WHITE;
+    }
   }
 
-  // NEW: Animate score table entrance
+  // Highlight current player
+  // highlightCurrentPlayer(scoreLabelNode) {
+  //   // Add "YOU" indicator
+  //   const youIndicator = new cc.Node("YouIndicator");
+  //   youIndicator.parent = scoreLabelNode;
+  //   youIndicator.x = 120;
+    
+  //   const youLabel = youIndicator.addComponent(cc.Label);
+  //   youLabel.string = "BẠN";
+  //   youLabel.fontSize = 16;
+  //   youLabel.node.color = cc.Color.CYAN;
+    
+  //   // Add pulsing effect
+  //   const pulseAction = cc.sequence(
+  //     cc.scaleTo(0.8, 1.1),
+  //     cc.scaleTo(0.8, 1.0)
+  //   );
+  //   youIndicator.runAction(cc.repeatForever(pulseAction));
+  // }
+
+  // Animate individual score labels
+  animateScoreLabel(labelNode, index) {
+    // Start from the right and fade in
+    labelNode.x = 300;
+    labelNode.opacity = 0;
+    
+    // Stagger animations
+    const delay = index * 0.3;
+    
+    const moveAction = cc.moveTo(0.5, cc.v2(0, labelNode.y));
+    const fadeAction = cc.fadeTo(0.5, 255);
+    const delayAction = cc.delayTime(delay);
+    
+    const sequence = cc.sequence(
+      delayAction,
+      cc.spawn(moveAction, fadeAction)
+    );
+    
+    labelNode.runAction(sequence);
+  }
+
+  // Animate score table entrance
   animateScoreTableEntrance() {
     if (!this.scoreTablePopup) return;
 
@@ -600,18 +598,19 @@ export default class GameController extends cc.Component {
     this.scoreTablePopup.opacity = 0;
 
     // Animate to full size with bounce effect
-    const scaleAction = cc.sequence(cc.scaleTo(0.3, 1.2), cc.scaleTo(0.2, 1.0));
-
+    const scaleAction = cc.sequence(
+      cc.scaleTo(0.3, 1.2), 
+      cc.scaleTo(0.2, 1.0)
+    );
     const fadeAction = cc.fadeTo(0.3, 255);
 
     this.scoreTablePopup.runAction(cc.spawn(scaleAction, fadeAction));
   }
 
-  // NEW: Hide score table pop-up
+  // Hide score table pop-up
   hideScoreTablePopup() {
     if (!this.scoreTablePopup) return;
 
-    // Animate out
     const scaleAction = cc.scaleTo(0.2, 0);
     const fadeAction = cc.fadeTo(0.2, 0);
     const hideAction = cc.callFunc(() => {
@@ -619,7 +618,6 @@ export default class GameController extends cc.Component {
     });
 
     const sequence = cc.sequence(cc.spawn(scaleAction, fadeAction), hideAction);
-
     this.scoreTablePopup.runAction(sequence);
   }
 
