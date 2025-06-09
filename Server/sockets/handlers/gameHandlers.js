@@ -1,4 +1,7 @@
-// handlers/gameHandlers.js - Clean version
+const ValidationMiddleware = require("../../middleware/ValidationMiddleware");
+const GameEventEmitter = require("../utils/GameEventEmitter");
+const GAME_CONSTANTS = require("../../config/constants");
+
 function setupGameHandlers(socket, controllers, io) {
   socket.on("start-game", (data) => {
     const { roomId } = data;
@@ -6,18 +9,22 @@ function setupGameHandlers(socket, controllers, io) {
 
     if (!controller) return;
 
-    if (controller.room.players.size < 2) {
-      socket.emit("start-game-failed", {
-        reason: "Need at least 2 players to start",
-      });
+    if (controller.room.players.size < GAME_CONSTANTS.MIN_PLAYERS) {
+      GameEventEmitter.emitStartGameFailed(
+        socket,
+        `Need at least ${GAME_CONSTANTS.MIN_PLAYERS} players to start`
+      );
       return;
     }
 
     controller.gameService.start();
-    io.to(roomId).emit("game-started", { roomId });
+    GameEventEmitter.emitGameStarted(io, roomId);
   });
 
   socket.on("player-move", (data) => {
+    const validation = ValidationMiddleware.validatePlayerMove(data);
+    if (!validation.isValid) return;
+
     const { roomId, playerId, direction } = data;
     const controller = controllers.get(roomId);
 
@@ -49,33 +56,24 @@ function setupGameHandlers(socket, controllers, io) {
     }
 
     // Handle quit based on game state
-    if (controller.room.status === "playing") {
-      // Handle quit - GameService sẽ tự check endGame
+    if (controller.room.status === GAME_CONSTANTS.ROOM_STATUS.PLAYING) {
       controller.gameService.handlePlayerQuit(playerId);
-
-      // Notify others về việc quit
       socket.to(roomId).emit("player-left", {
         playerId,
         playerName: player.name,
         reason: "quit",
       });
-
-      // Remove socket khỏi room nhưng giữ player data
       socket.leave(roomId);
       socket.emit("quit-room-success");
-
-      // Room cleanup sẽ được handle trong GameService.endGame()
     } else {
-      // Game chưa bắt đầu - xử lý quit bình thường
+      // Game not started - normal quit
       controller.room.players.delete(playerId);
       socket.leave(roomId);
-
       socket.to(roomId).emit("player-left", {
         playerId,
         playerName: player.name,
         reason: "quit",
       });
-
       socket.emit("quit-room-success");
 
       // Clean up empty room

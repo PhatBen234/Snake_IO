@@ -8,7 +8,7 @@ const roomHandlers = require("./handlers/roomHandlers");
 const gameHandlers = require("./handlers/gameHandlers");
 const connectionHandlers = require("./handlers/connectionHandlers");
 
-const ChatService = require('./services/ChatService');
+const ChatService = require('../services/ChatService');
 
 const controllers = new Map();
 
