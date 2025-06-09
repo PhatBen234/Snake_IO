@@ -90,6 +90,9 @@
     "snakeBodySprite": {
       "__uuid__": "f189e88b-d672-4067-a6b7-89ef821188a6"
     },
+    "snakeTailSprite": {
+      "__uuid__": "88bd49a7-0114-4064-8f60-7529d316d4d2"
+    },
     "_id": ""
   },
   {
