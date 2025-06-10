@@ -11,6 +11,7 @@ export default class RoomJoinUI extends cc.Component {
   roomDataManager = null;
   uiController = null;
   currentPlayerName = null; // Store current player name
+  gameSceneLoading = false; // Flag to prevent multiple scene loads
 
   onLoad() {
     this.initializeComponents();
@@ -41,24 +42,24 @@ export default class RoomJoinUI extends cc.Component {
 
     this.socketManager.on("player-joined", (data) => {
       this.updateRoomIfExists(data.roomData);
-      
+
       // Send chat notification about player joining
       if (data.roomData && data.playerName) {
-        this.socketManager.emit('join-room', {
+        this.socketManager.emit("join-room", {
           roomId: data.roomData.id,
-          playerName: data.playerName
+          playerName: data.playerName,
         });
       }
     });
 
     this.socketManager.on("player-left", (data) => {
       this.updateRoomIfExists(data.roomData);
-      
+
       // Send chat notification about player leaving
       if (data.roomData && data.playerName) {
-        this.socketManager.emit('quit-room', {
+        this.socketManager.emit("quit-room", {
           roomId: data.roomData.id,
-          playerName: data.playerName
+          playerName: data.playerName,
         });
       }
     });
@@ -73,12 +74,12 @@ export default class RoomJoinUI extends cc.Component {
 
     this.socketManager.on("game-started", () => {
       this.uiController.updateStatus("Game đã bắt đầu! Đang tải...");
-      
+
       // Send game start notification to chat
-      this.socketManager.emit('start-game', {
-        roomId: this.roomDataManager.getCurrentRoom()
+      this.socketManager.emit("start-game", {
+        roomId: this.roomDataManager.getCurrentRoom(),
       });
-      
+
       this.saveGameData();
       this.loadGameScene();
     });
@@ -123,16 +124,18 @@ export default class RoomJoinUI extends cc.Component {
     this.uiController.updateStatus(statusMessage);
 
     // Store current player name for chat system
-    const currentPlayer = data.roomData.players.find(p => p.id === this.socketManager.getPlayerId());
+    const currentPlayer = data.roomData.players.find(
+      (p) => p.id === this.socketManager.getPlayerId()
+    );
     if (currentPlayer) {
       this.currentPlayerName = currentPlayer.name;
       this.savePlayerName(this.currentPlayerName);
     }
 
     // Send join notification to chat
-    this.socketManager.emit('join-room', {
+    this.socketManager.emit("join-room", {
       roomId: data.roomId,
-      playerName: this.currentPlayerName
+      playerName: this.currentPlayerName,
     });
   }
 
@@ -142,7 +145,9 @@ export default class RoomJoinUI extends cc.Component {
       this.updateUIRoomInfo();
 
       // Update player name if it changed
-      const currentPlayer = roomData.players.find(p => p.id === this.socketManager.getPlayerId());
+      const currentPlayer = roomData.players.find(
+        (p) => p.id === this.socketManager.getPlayerId()
+      );
       if (currentPlayer && currentPlayer.name !== this.currentPlayerName) {
         this.currentPlayerName = currentPlayer.name;
         this.savePlayerName(this.currentPlayerName);
@@ -198,9 +203,9 @@ export default class RoomJoinUI extends cc.Component {
       return;
 
     // Send leave notification to chat
-    this.socketManager.emit('quit-room', {
+    this.socketManager.emit("quit-room", {
       roomId: this.roomDataManager.getCurrentRoom(),
-      playerName: this.currentPlayerName
+      playerName: this.currentPlayerName,
     });
 
     this.socketManager.emit("leave-room", {
@@ -269,6 +274,11 @@ export default class RoomJoinUI extends cc.Component {
   }
 
   loadGameScene() {
+    if (this.gameSceneLoading) {
+      return; // Prevent multiple scene loads
+    }
+
+    this.gameSceneLoading = true;
     this.uiController.hideUI();
 
     setTimeout(() => {
@@ -276,6 +286,9 @@ export default class RoomJoinUI extends cc.Component {
         if (err) {
           this.uiController.updateStatus("Lỗi khi tải game!");
           this.uiController.showUI();
+          this.gameSceneLoading = false; // Reset flag on error
+        } else {
+          console.log("Game scene loaded successfully!");
         }
       });
     }, 500);
