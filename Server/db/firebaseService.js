@@ -13,6 +13,7 @@ function init() {
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
   });
 
   console.log("🔥 Firebase Initialized");
@@ -22,4 +23,12 @@ function getDB() {
   return admin.firestore();
 }
 
-module.exports = { init, getDB };
+function getBucket() {
+  return admin.storage().bucket();
+}
+
+module.exports = {
+  init,
+  getDB,
+  getBucket,
+};
