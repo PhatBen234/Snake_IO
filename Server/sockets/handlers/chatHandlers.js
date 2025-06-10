@@ -1,5 +1,8 @@
 const ChatService = require("../../services/ChatService");
 
+// Track game start messages per room to prevent spam
+const gameStartTracker = new Map();
+
 function setupChatHandlers(socket, io) {
   // Handle chat messages
   socket.on('chat-message', (data) => {
@@ -40,8 +43,22 @@ function setupChatHandlers(socket, io) {
     }
   });
 
-  // Handle game start chat message
+  // Handle game start chat message with protection against spam
   socket.on('start-game', (data) => {
+    if (!data.roomId) return;
+    
+    const now = Date.now();
+    const lastGameStart = gameStartTracker.get(data.roomId);
+    
+    // Prevent spam: only allow one game start message per room within 5 seconds
+    if (lastGameStart && (now - lastGameStart) < 5000) {
+      console.log(`Game start message blocked for room ${data.roomId} - too frequent`);
+      return;
+    }
+    
+    // Update tracker
+    gameStartTracker.set(data.roomId, now);
+    
     // Send game start message to chat
     ChatService.broadcastSystemMessage(
       io,
@@ -49,6 +66,9 @@ function setupChatHandlers(socket, io) {
       'Game started! Good luck everyone!',
       'cyan'
     );
+    
+    // Clean up old entries (older than 1 minute)
+    cleanupGameStartTracker();
   });
 
   // Handle chat history request
@@ -96,6 +116,21 @@ function setupChatHandlers(socket, io) {
     }
   });
 }
+
+// Clean up old game start tracker entries
+function cleanupGameStartTracker() {
+  const now = Date.now();
+  const oneMinuteAgo = now - 60000;
+  
+  for (const [roomId, timestamp] of gameStartTracker.entries()) {
+    if (timestamp < oneMinuteAgo) {
+      gameStartTracker.delete(roomId);
+    }
+  }
+}
+
+// Optional: Clean up tracker periodically
+setInterval(cleanupGameStartTracker, 300000); // Clean every 5 minutes
 
 module.exports = {
   setupChatHandlers,
