@@ -832,7 +832,7 @@
         "__id__": 18
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [],
     "_prefab": null,
     "_opacity": 255,
@@ -3416,7 +3416,7 @@
         "__id__": 121
       }
     ],
-    "_active": false,
+    "_active": true,
     "_components": [],
     "_prefab": null,
     "_opacity": 255,
@@ -3585,8 +3585,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 173.32,
-      "height": 75.6
+      "width": 254.61,
+      "height": 100.8
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -3637,10 +3637,10 @@
     ],
     "_srcBlendFactor": 770,
     "_dstBlendFactor": 771,
-    "_string": "Lobby",
-    "_N$string": "Lobby",
-    "_fontSize": 60,
-    "_lineHeight": 60,
+    "_string": "LOBBY",
+    "_N$string": "LOBBY",
+    "_fontSize": 80,
+    "_lineHeight": 80,
     "_enableWrapText": true,
     "_N$file": {
       "__uuid__": "c07c0b7b-ac7a-4656-ae55-b9ad51b366a9"
@@ -6444,9 +6444,6 @@
     },
     "lobbyPanel": {
       "__id__": 72
-    },
-    "roomInfoLabel": {
-      "__id__": 76
     },
     "roomIdCopyLabel": {
       "__id__": 99

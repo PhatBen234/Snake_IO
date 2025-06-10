@@ -2,7 +2,6 @@ const { ccclass, property } = cc._decorator;
 
 @ccclass
 export default class UIController extends cc.Component {
-  // Join Panel
   @property(cc.Node) joinPanel = null;
   @property(cc.EditBox) roomIdInput = null;
   @property(cc.EditBox) playerNameInput = null;
@@ -10,11 +9,10 @@ export default class UIController extends cc.Component {
   @property(cc.Button) createLobbyBtn = null;
   @property(cc.Label) statusLabel = null;
 
-  // Player Limit Controls
+
   @property(cc.EditBox) playerLimitInput = null;
-  // Lobby Panel
+
   @property(cc.Node) lobbyPanel = null;
-  @property(cc.Label) roomInfoLabel = null;
   @property(cc.Label) roomIdCopyLabel = null;
   @property(cc.Button) copyRoomIdBtn = null;
   @property(cc.Label) playersCountLabel = null;
@@ -56,7 +54,6 @@ export default class UIController extends cc.Component {
     this.playerNameInput.string = `Player_${Math.floor(Math.random() * 1000)}`;
     this.roomIdInput.string = "";
 
-    // Set default player limit to 4
     if (this.playerLimitInput) {
       this.playerLimitInput.string = "4";
     }
@@ -85,10 +82,6 @@ export default class UIController extends cc.Component {
     if (!roomData) return;
 
     this.currentRoomId = roomId;
-
-    if (this.roomInfoLabel) {
-      this.roomInfoLabel.string = `Phòng: ${roomId}`;
-    }
 
     if (this.roomIdCopyLabel) {
       this.roomIdCopyLabel.string = `Room ID: ${roomId}`;
@@ -196,12 +189,12 @@ export default class UIController extends cc.Component {
 
   validateInput(roomId, playerName, needRoomId) {
     if (needRoomId && !roomId) {
-      this.updateStatus("Vui lòng nhập ID phòng!");
+      this.updateStatus("PLEASE INPUT ROOM ID!");
       return false;
     }
 
     if (!playerName) {
-      this.updateStatus("Vui lòng nhập tên người chơi!");
+      this.updateStatus("PLEASE INPUT YOUR NAME!");
       return false;
     }
 
@@ -210,7 +203,7 @@ export default class UIController extends cc.Component {
 
   validatePlayerLimit(limit) {
     if (isNaN(limit) || limit < 2 || limit > 4) {
-      this.updateStatus("Giới hạn người chơi phải từ 2 đến 4!");
+      this.updateStatus("PLAYER LIMIT MUST BE BETWEEN 2 AND 4!");
       return false;
     }
     return true;
@@ -226,7 +219,7 @@ export default class UIController extends cc.Component {
 
   onCopyRoomIdClick() {
     if (!this.currentRoomId) {
-      this.updateStatus("Không có Room ID để copy!");
+      this.updateStatus("THIS ROOM HAS NO ID!");
       return;
     }
 
@@ -237,7 +230,7 @@ export default class UIController extends cc.Component {
     if (navigator?.clipboard) {
       navigator.clipboard
         .writeText(text)
-        .then(() => this.updateStatus(`✅ Đã copy Room ID: ${text}`))
+        .then(() => this.updateStatus(`✅ COPIED: ${text}`))
         .catch(() => this.fallbackCopy(text));
     } else {
       this.fallbackCopy(text);
@@ -254,9 +247,9 @@ export default class UIController extends cc.Component {
 
     try {
       document.execCommand("copy");
-      this.updateStatus(`✅ Đã copy Room ID: ${text}`);
+      this.updateStatus(`✅ COPIED: ${text}`);
     } catch (err) {
-      this.updateStatus(`Room ID: ${text} (Không thể copy tự động)`);
+      this.updateStatus(`Room ID: ${text} (CAN NOT COPY)`);
     }
 
     document.body.removeChild(textArea);
