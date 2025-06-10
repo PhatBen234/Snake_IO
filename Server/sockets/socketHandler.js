@@ -3,12 +3,11 @@ const Player = require("../models/Player");
 const GameController = require("../controllers/GameController");
 const FoodService = require("../services/FoodService");
 const RoomService = require("../services/RoomService");
+const ChatService = require("../services/ChatService");
 
 const roomHandlers = require("./handlers/roomHandlers");
 const gameHandlers = require("./handlers/gameHandlers");
 const connectionHandlers = require("./handlers/connectionHandlers");
-
-const ChatService = require('../services/ChatService');
 
 const controllers = new Map();
 
@@ -38,12 +37,12 @@ module.exports = function (io) {
       controllers,
       RoomService
     );
-    socket.on('chat-message', (data) => {
+    socket.on("chat-message", (data) => {
       ChatService.handleChatMessage(socket, io, data);
     });
 
     // Send chat history when player joins room
-    socket.on('join-room', (data) => {
+    socket.on("join-room", (data) => {
       // ... existing join room logic ...
 
       // Send chat history to newly joined player
@@ -55,13 +54,13 @@ module.exports = function (io) {
           io,
           data.roomId,
           `${data.playerName} joined the room`,
-          'green'
+          "green"
         );
       }
     });
 
     // Handle player leaving room
-    socket.on('quit-room', (data) => {
+    socket.on("quit-room", (data) => {
       // ... existing quit room logic ...
 
       // Broadcast leave message to room
@@ -70,14 +69,14 @@ module.exports = function (io) {
           io,
           data.roomId,
           `${data.playerName} left the room`,
-          'orange'
+          "orange"
         );
       }
     });
 
     // Handle disconnect
-    socket.on('disconnect', () => {
-      console.log('Player disconnected:', socket.id);
+    socket.on("disconnect", () => {
+      console.log("Player disconnected:", socket.id);
 
       // Clean up chat service
       ChatService.handlePlayerDisconnect(socket.id);
@@ -87,28 +86,28 @@ module.exports = function (io) {
 
     // ===== GAME EVENTS (existing) =====
 
-    socket.on('create-room', (data) => {
+    socket.on("create-room", (data) => {
       // ... existing create room logic ...
     });
 
-    socket.on('start-game', (data) => {
+    socket.on("start-game", (data) => {
       // ... existing start game logic ...
 
       // Send game start message to chat
       ChatService.broadcastSystemMessage(
         io,
         data.roomId,
-        'Game started! Good luck everyone!',
-        'cyan'
+        "Game started! Good luck everyone!",
+        "cyan"
       );
     });
 
-    socket.on('player-move', (data) => {
+    socket.on("player-move", (data) => {
       // ... existing player move logic ...
     });
 
     // Add chat history request handler
-    socket.on('request-chat-history', (data) => {
+    socket.on("request-chat-history", (data) => {
       if (data.roomId) {
         ChatService.sendChatHistoryToPlayer(socket, data.roomId);
       }
