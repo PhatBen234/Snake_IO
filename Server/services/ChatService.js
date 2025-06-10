@@ -1,4 +1,3 @@
-// services/ChatService.js
 class ChatService {
     constructor() {
         // Chat history storage (in-memory, could be replaced with database)
@@ -7,6 +6,9 @@ class ChatService {
         this.messageRateLimit = new Map(); // playerId -> { count, resetTime }
         this.RATE_LIMIT_WINDOW = 60000; // 1 minute
         this.MAX_MESSAGES_PER_MINUTE = 10;
+        
+        // Player names storage for better chat experience
+        this.playerNames = new Map(); // playerId -> playerName
     }
 
     // Handle incoming chat message
@@ -25,6 +27,11 @@ class ChatService {
                     message: 'Too many messages. Please slow down.' 
                 });
                 return;
+            }
+
+            // Store/update player name for future reference
+            if (data.username) {
+                this.playerNames.set(data.playerId, data.username);
             }
 
             // Process and clean message
@@ -94,7 +101,8 @@ class ChatService {
             username: this.sanitizeText(data.username),
             message: this.sanitizeText(data.message),
             timestamp: Date.now(),
-            id: this.generateMessageId()
+            id: this.generateMessageId(),
+            isSystem: false
         };
     }
 
@@ -174,7 +182,7 @@ class ChatService {
 
     // Send chat history to newly joined player
     sendChatHistoryToPlayer(socket, roomId) {
-        const history = this.getChatHistory(roomId, 10); // Send last 10 messages
+        const history = this.getChatHistory(roomId, 20); // Send last 20 messages
         if (history.length > 0) {
             socket.emit('chat-history', { roomId, messages: history });
         }
@@ -211,6 +219,42 @@ class ChatService {
     handlePlayerDisconnect(playerId) {
         // Clean up rate limiting for disconnected player
         this.messageRateLimit.delete(playerId);
+        
+        // Keep player name for a while in case they reconnect
+        // Don't delete immediately: this.playerNames.delete(playerId);
+    }
+
+    // Get stored player name
+    getPlayerName(playerId) {
+        return this.playerNames.get(playerId) || `Player_${playerId.substring(0, 4)}`;
+    }
+
+    // Update player name
+    updatePlayerName(playerId, newName) {
+        if (playerId && newName) {
+            this.playerNames.set(playerId, newName);
+        }
+    }
+
+    // Get all chat data for a room (for syncing between scenes)
+    getRoomChatData(roomId) {
+        return {
+            roomId: roomId,
+            messages: this.getChatHistory(roomId, 50), // Get more messages for scene transitions
+            playerNames: Object.fromEntries(this.playerNames)
+        };
+    }
+
+    // Sync chat data when transitioning between scenes
+    syncChatDataToPlayer(socket, roomId, playerId) {
+        const chatData = this.getRoomChatData(roomId);
+        socket.emit('chat-sync', chatData);
+    }
+
+    // Clean up old player names periodically
+    cleanupPlayerNames() {
+        // This could be called periodically to clean up old player names
+        // For now, we'll keep them indefinitely for better UX
     }
 }
 

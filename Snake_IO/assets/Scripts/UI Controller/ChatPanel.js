@@ -16,7 +16,7 @@ cc.Class({
         this.hideTimer = null;
         this.HIDE_DELAY = 5;
         this._justBlurred = false;
-        this._lastBlurTime = 0; 
+        this._lastBlurTime = 0;
         this._blurredByEnter = false;
 
         // Socket và room info
@@ -38,7 +38,7 @@ cc.Class({
         cc.systemEvent.off(cc.SystemEvent.EventType.KEY_DOWN, this.onKeyDown, this);
         this.node.parent.off(cc.Node.EventType.TOUCH_START, this.onUserInteraction, this);
         this.clearHideTimer();
-        
+
         // Clean up socket events
         if (this.socket) {
             this.socket.off('chat-message');
@@ -52,7 +52,7 @@ cc.Class({
         // Lấy socket từ global hoặc GameController
         this.socket = window.gameSocket;
         this.currentRoom = window.currentRoomId;
-        
+
         if (!this.socket) {
             console.error('No socket connection found');
             return;
@@ -60,7 +60,7 @@ cc.Class({
 
         // Get username from socket ID or stored username
         this.username = window.currentUsername || `Player_${this.socket.id?.substring(0, 4)}`;
-        
+
         // Update username display
         if (this.usernameLabel) {
             this.usernameLabel.string = this.username;
@@ -99,7 +99,7 @@ cc.Class({
     onKeyDown(event) {
         if (event.keyCode === cc.macro.KEY.enter) {
             const currentTime = Date.now();
-            
+
             if (!this.editBox.node.active) {
                 // Nếu UI đang ẩn -> hiển thị và focus
                 this.showChatUI();
@@ -200,7 +200,7 @@ cc.Class({
 
         const chatItem = cc.instantiate(this.chatItemPrefab);
         const label = chatItem.getComponentInChildren(cc.Label);
-        
+
         if (label) {
             // Format: [Username]: Message
             const displayText = `${data.username}: ${data.message}`;
@@ -222,7 +222,7 @@ cc.Class({
 
         const chatItem = cc.instantiate(this.chatItemPrefab);
         const label = chatItem.getComponentInChildren(cc.Label);
-        
+
         if (label) {
             label.string = `[System] ${message}`;
             label.node.color = color;
@@ -242,7 +242,6 @@ cc.Class({
             oldestChild.destroy();
         }
 
-        // Auto scroll to bottom
         this.scheduleOnce(() => {
             this.scrollView.scrollToBottom(0.2);
         }, 0.05);
@@ -290,5 +289,16 @@ cc.Class({
     // Add a welcome message when joining room
     showWelcomeMessage() {
         this.displaySystemMessage(`Welcome to the room! You are: ${this.username}`, cc.Color.GREEN);
-    }
+    },
+
+    scrollToBottom() {
+        if (!this.scrollView) return;
+
+        const scrollViewComp = this.scrollView.getComponent(cc.ScrollView);
+        if (scrollViewComp) {
+            this.scheduleOnce(() => {
+                scrollViewComp.scrollToBottom(0.2);
+            }, 0.05);
+        }
+    },
 });

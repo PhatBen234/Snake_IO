@@ -10,6 +10,7 @@ export default class RoomJoinUI extends cc.Component {
   socketManager = null;
   roomDataManager = null;
   uiController = null;
+  currentPlayerName = null; // Store current player name
 
   onLoad() {
     this.initializeComponents();
@@ -40,10 +41,26 @@ export default class RoomJoinUI extends cc.Component {
 
     this.socketManager.on("player-joined", (data) => {
       this.updateRoomIfExists(data.roomData);
+      
+      // Send chat notification about player joining
+      if (data.roomData && data.playerName) {
+        this.socketManager.emit('join-room', {
+          roomId: data.roomData.id,
+          playerName: data.playerName
+        });
+      }
     });
 
     this.socketManager.on("player-left", (data) => {
       this.updateRoomIfExists(data.roomData);
+      
+      // Send chat notification about player leaving
+      if (data.roomData && data.playerName) {
+        this.socketManager.emit('quit-room', {
+          roomId: data.roomData.id,
+          playerName: data.playerName
+        });
+      }
     });
 
     this.socketManager.on("new-host", (data) => {
@@ -56,6 +73,12 @@ export default class RoomJoinUI extends cc.Component {
 
     this.socketManager.on("game-started", () => {
       this.uiController.updateStatus("Game đã bắt đầu! Đang tải...");
+      
+      // Send game start notification to chat
+      this.socketManager.emit('start-game', {
+        roomId: this.roomDataManager.getCurrentRoom()
+      });
+      
       this.saveGameData();
       this.loadGameScene();
     });
@@ -98,12 +121,32 @@ export default class RoomJoinUI extends cc.Component {
     this.uiController.showLobbyPanel();
     this.updateUIRoomInfo();
     this.uiController.updateStatus(statusMessage);
+
+    // Store current player name for chat system
+    const currentPlayer = data.roomData.players.find(p => p.id === this.socketManager.getPlayerId());
+    if (currentPlayer) {
+      this.currentPlayerName = currentPlayer.name;
+      this.savePlayerName(this.currentPlayerName);
+    }
+
+    // Send join notification to chat
+    this.socketManager.emit('join-room', {
+      roomId: data.roomId,
+      playerName: this.currentPlayerName
+    });
   }
 
   updateRoomIfExists(roomData) {
     if (this.roomDataManager?.getRoomData()) {
       this.roomDataManager.updateRoomData(roomData);
       this.updateUIRoomInfo();
+
+      // Update player name if it changed
+      const currentPlayer = roomData.players.find(p => p.id === this.socketManager.getPlayerId());
+      if (currentPlayer && currentPlayer.name !== this.currentPlayerName) {
+        this.currentPlayerName = currentPlayer.name;
+        this.savePlayerName(this.currentPlayerName);
+      }
     }
   }
 
@@ -112,6 +155,10 @@ export default class RoomJoinUI extends cc.Component {
 
     // Validate player limit on client side
     if (!this.validatePlayerLimit(playerLimit)) return;
+
+    // Store player name
+    this.currentPlayerName = playerName;
+    this.savePlayerName(playerName);
 
     this.uiController.updateStatus("Đang tạo phòng...");
     this.socketManager.emit("create-room", {
@@ -123,6 +170,10 @@ export default class RoomJoinUI extends cc.Component {
 
   joinRoom(roomId, playerName) {
     if (!this.validateConnection()) return;
+
+    // Store player name
+    this.currentPlayerName = playerName;
+    this.savePlayerName(playerName);
 
     this.uiController.updateStatus("Đang vào phòng...");
     this.socketManager.emit("join-room", {
@@ -145,6 +196,12 @@ export default class RoomJoinUI extends cc.Component {
   leaveRoom() {
     if (!this.validateConnection() || !this.roomDataManager?.getCurrentRoom())
       return;
+
+    // Send leave notification to chat
+    this.socketManager.emit('quit-room', {
+      roomId: this.roomDataManager.getCurrentRoom(),
+      playerName: this.currentPlayerName
+    });
 
     this.socketManager.emit("leave-room", {
       roomId: this.roomDataManager.getCurrentRoom(),
@@ -198,11 +255,17 @@ export default class RoomJoinUI extends cc.Component {
     );
   }
 
+  // Save player name to global storage for chat system
+  savePlayerName(playerName) {
+    window.currentPlayerName = playerName;
+  }
+
   saveGameData() {
     window.gameSocket = this.socketManager.socket;
     window.currentRoomId = this.roomDataManager.getCurrentRoom();
     window.currentPlayerId = this.socketManager.getPlayerId();
     window.roomData = this.roomDataManager.getRoomData();
+    window.currentPlayerName = this.currentPlayerName; // Save player name
   }
 
   loadGameScene() {
