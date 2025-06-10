@@ -6,8 +6,8 @@ const { Server } = require("socket.io");
 
 const socketHandler = require("./sockets/socketHandler");
 const firebaseService = require("./db/firebaseService");
-const leaderboardRoutes = require("./routes/leaderboard"); // ADD THIS LINE
-
+const leaderboardRoutes = require("./routes/leaderboard");
+const screenshotRoutes = require("./routes/screenshot");
 const app = express();
 
 // CORS: chỉ cho phép từ Cocos Creator (localhost:7456)
@@ -23,6 +23,7 @@ firebaseService.init();
 
 // API Routes
 app.use("/api/leaderboard", leaderboardRoutes); // ADD THIS LINE
+app.use("/api/screenshot", screenshotRoutes);
 
 const server = http.createServer(app);
 
