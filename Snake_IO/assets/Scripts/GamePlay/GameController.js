@@ -30,6 +30,9 @@ export default class GameController extends cc.Component {
   @property(cc.Button)
   backToLobbyButton = null;
 
+  @property(cc.Node)
+  chatPanelNode = null;
+
   socket = null;
   playerId = null;
   currentRoom = null;
@@ -50,6 +53,24 @@ export default class GameController extends cc.Component {
     this.resetGameState();
     this.initialize();
     this.setupScoreTablePopup();
+    this.setupChatPanel();
+  }
+
+  setupChatPanel() {
+    if (this.chatPanelNode) {
+      const chatPanel = this.chatPanelNode.getComponent('ChatPanel');
+      if (chatPanel) {
+        // Set username for chat
+        const playerName = window.currentPlayerName || `Player_${this.playerId?.substring(0, 4)}`;
+        chatPanel.setUsername(playerName);
+
+        // Show welcome message
+        chatPanel.showWelcomeMessage();
+
+        // Request chat history
+        this.requestChatHistory();
+      }
+    }
   }
 
   // Setup score table pop-up
@@ -194,6 +215,30 @@ export default class GameController extends cc.Component {
     this.socket.on("quit-room-failed", (data) => {
       this.updateStatus(`Cannot leave room: ${data.reason}`);
     });
+
+    this.socket.on('chat-history', (data) => {
+      if (data.roomId === this.currentRoom && this.chatPanelNode) {
+        const chatPanel = this.chatPanelNode.getComponent('ChatPanel');
+        if (chatPanel) {
+          // Display chat history
+          data.messages.forEach(message => {
+            chatPanel.displayChatMessage(message);
+          });
+        }
+      }
+    });
+
+    this.socket.on('player-joined', (data) => {
+      // ... existing logic ...
+
+      // Chat will automatically handle this via its own socket listeners
+    });
+
+    this.socket.on('player-left', (data) => {
+      // ... existing logic ...
+
+      // Chat will automatically handle this via its own socket listeners
+    });
   }
 
   setupKeyboardControls() {
@@ -271,6 +316,13 @@ export default class GameController extends cc.Component {
       roomId: this.currentRoom,
       playerId: this.playerId,
     });
+    
+    if (this.chatPanelNode) {
+      const chatPanel = this.chatPanelNode.getComponent('ChatPanel');
+      if (chatPanel) {
+        chatPanel.clearChatHistory();
+      }
+    }
   }
 
   autoStartGame() {
@@ -741,4 +793,45 @@ export default class GameController extends cc.Component {
 
     cc.systemEvent.off(cc.SystemEvent.EventType.KEY_DOWN);
   }
+
+  requestChatHistory() {
+    if (this.socket && this.currentRoom) {
+      this.socket.emit('request-chat-history', {
+        roomId: this.currentRoom,
+        playerId: this.playerId
+      });
+    }
+  }
+
+  // Modify handleGameEnd để gửi chat message
+  handleGameEnd(data) {
+    this.isGameActive = false;
+
+    let statusMessage = '';
+    if (data.isDraw) {
+      statusMessage = 'Game ended in a draw!';
+    } else if (data.winner) {
+      statusMessage = `Game ended! Winner: ${data.winner}`;
+    } else {
+      statusMessage = 'Game ended!';
+    }
+
+    this.updateStatus(statusMessage);
+
+    // Send game end message to chat
+    if (this.chatPanelNode) {
+      const chatPanel = this.chatPanelNode.getComponent('ChatPanel');
+      if (chatPanel) {
+        chatPanel.displaySystemMessage(statusMessage, cc.Color.YELLOW);
+      }
+    }
+
+    // Show leaderboard
+    if (this.gameState && this.gameState.players) {
+      setTimeout(() => this.showLeaderboard(), 1500);
+    }
+
+    setTimeout(() => this.clearGameObjects(), 1500);
+  }
+
 }
