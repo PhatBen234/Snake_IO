@@ -30,6 +30,9 @@ export default class GameController extends cc.Component {
   @property(cc.Button)
   backToLobbyButton = null;
 
+  @property(cc.Node)
+  chatControllerNode = null;
+
   socket = null;
   playerId = null;
   currentRoom = null;
@@ -148,22 +151,17 @@ export default class GameController extends cc.Component {
       this.handleGameEnd(data);
     });
 
-    // CẢI THIỆN: Cập nhật gameState khi có player quit
     this.socket.on("player-left", (data) => {
       this.removePlayerSnake(data.playerId);
 
-      // QUAN TRỌNG: Cập nhật điểm số của player quit về 0 trong gameState
+      // Update gameState when player quits
       if (this.gameState && this.gameState.players) {
         const playerIndex = this.gameState.players.findIndex(
           (p) => p.id === data.playerId
         );
         if (playerIndex !== -1) {
-          // Cập nhật điểm số về 0 cho player đã quit
           this.gameState.players[playerIndex].score = 0;
           this.gameState.players[playerIndex].alive = false;
-          console.log(
-            `Updated local gameState for quit player ${data.playerId}: score = 0`
-          );
         }
       }
 
@@ -271,6 +269,14 @@ export default class GameController extends cc.Component {
       roomId: this.currentRoom,
       playerId: this.playerId,
     });
+    
+    // Clear chat history through ChatController
+    if (this.chatControllerNode) {
+      const chatController = this.chatControllerNode.getComponent('ChatController');
+      if (chatController) {
+        chatController.clearChatHistory();
+      }
+    }
   }
 
   autoStartGame() {
@@ -438,13 +444,29 @@ export default class GameController extends cc.Component {
   // Simplified game end handler
   handleGameEnd(data) {
     this.isGameActive = false;
-    this.updateStatus(
-      `Game ended! ${data.winner ? `Winner: ${data.winner}` : "Draw"}`
-    );
 
-    // CẬP NHẬT: Sử dụng dữ liệu từ server thay vì gameState local
+    let statusMessage = '';
+    if (data.isDraw) {
+      statusMessage = 'Game ended in a draw!';
+    } else if (data.winner) {
+      statusMessage = `Game ended! Winner: ${data.winner}`;
+    } else {
+      statusMessage = 'Game ended!';
+    }
+
+    this.updateStatus(statusMessage);
+
+    // Send game end message to chat through ChatController
+    if (this.chatControllerNode) {
+      const chatController = this.chatControllerNode.getComponent('ChatController');
+      if (chatController) {
+        chatController.displaySystemMessage(statusMessage, cc.Color.YELLOW);
+      }
+    }
+
+    // Use data from server instead of local gameState
     if (data.scores && data.scores.length > 0) {
-      // Cập nhật gameState với dữ liệu chính xác từ server
+      // Update gameState with accurate data from server
       if (this.gameState) {
         this.gameState.players = data.scores.map((scoreData) => ({
           id: scoreData.id,
@@ -456,7 +478,7 @@ export default class GameController extends cc.Component {
 
       setTimeout(() => this.showLeaderboard(), 1500);
     } else if (this.gameState && this.gameState.players) {
-      // Fallback sử dụng gameState hiện tại
+      // Fallback using current gameState
       setTimeout(() => this.showLeaderboard(), 1500);
     }
 
@@ -470,21 +492,17 @@ export default class GameController extends cc.Component {
       !this.scoreTableContent ||
       !this.scoreLabelPrefab
     ) {
-      console.error("Missing leaderboard components!");
       return;
     }
 
     let playersData = [];
 
-    // Ưu tiên sử dụng dữ liệu từ gameState
+    // Prioritize using data from gameState
     if (this.gameState?.players) {
       playersData = this.gameState.players;
     } else {
-      console.error("No players data available!");
       return;
     }
-
-    console.log("Leaderboard data:", playersData); // Debug log
 
     // Show the popup
     this.scoreTablePopup.active = true;
@@ -496,8 +514,6 @@ export default class GameController extends cc.Component {
     const top3Players = [...playersData]
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
-
-    console.log("Top 3 players for leaderboard:", top3Players); // Debug log
 
     // Create score labels for top 3 players
     top3Players.forEach((player, index) => {
@@ -561,20 +577,6 @@ export default class GameController extends cc.Component {
     return labelComponent;
   }
 
-  // Get rank indicator emoji/text
-  //   getRankIndicator(rank) {
-  //     switch (rank) {
-  //       case 1:
-  //         return "🥇"; // Gold medal
-  //       case 2:
-  //         return "🥈"; // Silver medal
-  //       case 3:
-  //         return "🥉"; // Bronze medal
-  //       default:
-  //         return `${rank}.`;
-  //     }
-  // }
-
   // Get color for different ranks
   getRankColor(rank) {
     switch (rank) {
@@ -588,26 +590,6 @@ export default class GameController extends cc.Component {
         return cc.Color.WHITE;
     }
   }
-
-  // Highlight current player
-  // highlightCurrentPlayer(scoreLabelNode) {
-  //   // Add "YOU" indicator
-  //   const youIndicator = new cc.Node("YouIndicator");
-  //   youIndicator.parent = scoreLabelNode;
-  //   youIndicator.x = 120;
-
-  //   const youLabel = youIndicator.addComponent(cc.Label);
-  //   youLabel.string = "BẠN";
-  //   youLabel.fontSize = 16;
-  //   youLabel.node.color = cc.Color.CYAN;
-
-  //   // Add pulsing effect
-  //   const pulseAction = cc.sequence(
-  //     cc.scaleTo(0.8, 1.1),
-  //     cc.scaleTo(0.8, 1.0)
-  //   );
-  //   youIndicator.runAction(cc.repeatForever(pulseAction));
-  // }
 
   // Animate individual score labels
   animateScoreLabel(labelNode, index) {
