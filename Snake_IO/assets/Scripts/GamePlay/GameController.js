@@ -33,6 +33,8 @@ export default class GameController extends cc.Component {
 
   // Game State
   isInitialized = false;
+  // NEW: Add flag to track if initialization is complete
+  isFullyInitialized = false;
 
   start() {
     this.initializeManagers();
@@ -107,14 +109,24 @@ export default class GameController extends cc.Component {
 
   async initialize() {
     try {
+      // UPDATED: Show loading status
+      this.uiManager.updateStatus("Initializing game...");
+
       await this.socketManager.connect();
       this.gameStateManager.setupGameArea();
       this.inputManager.setupControls();
 
       this.isInitialized = true;
-      this.uiManager.updateStatus("Ready - Waiting for game to start...");
 
-      setTimeout(() => this.autoStartGame(), 1000);
+      // UPDATED: Add small delay to ensure everything is properly set up
+      this.uiManager.updateStatus("Ready - Starting game...");
+
+      // UPDATED: Wait a bit more to ensure all components are ready
+      setTimeout(() => {
+        this.isFullyInitialized = true;
+        this.uiManager.updateStatus("Ready - Game starting...");
+        this.autoStartGame();
+      }, 2000); // Increased delay to 2 seconds
     } catch (error) {
       this.uiManager.updateStatus(
         "Initialization error - Returning to lobby..."
@@ -125,14 +137,31 @@ export default class GameController extends cc.Component {
 
   // Game Event Handlers
   handleGameStarted(data) {
-    if (this.isInitialized) {
+    // UPDATED: Only handle game start if fully initialized
+    if (this.isFullyInitialized) {
       this.gameStateManager.startGame();
       this.uiManager.updateStatus("Game started!");
+    } else {
+      // If not ready yet, wait and try again
+      console.log(
+        "Game start received but not fully initialized yet, waiting..."
+      );
+      setTimeout(() => {
+        if (this.isFullyInitialized) {
+          this.gameStateManager.startGame();
+          this.uiManager.updateStatus("Game started!");
+        }
+      }, 1000);
     }
   }
 
   handleGameState(state) {
-    if (this.isInitialized && this.gameStateManager.isGameActive() && state) {
+    // UPDATED: Check if fully initialized
+    if (
+      this.isFullyInitialized &&
+      this.gameStateManager.isGameActive() &&
+      state
+    ) {
       this.gameStateManager.updateGameState(state);
       this.updateGameDisplay(state);
     }
@@ -197,7 +226,7 @@ export default class GameController extends cc.Component {
   // Game Logic
   canProcessInput() {
     return (
-      this.isInitialized &&
+      this.isFullyInitialized && // UPDATED: Use isFullyInitialized instead of isInitialized
       this.gameStateManager.isGameActive() &&
       this.socketManager.isConnected() &&
       this.gameStateManager.hasGameState()
@@ -205,8 +234,12 @@ export default class GameController extends cc.Component {
   }
 
   autoStartGame() {
-    if (this.isInitialized && this.socketManager.isConnected()) {
+    // UPDATED: Check both flags before starting
+    if (this.isFullyInitialized && this.socketManager.isConnected()) {
+      console.log("Auto starting game - all systems ready");
       this.socketManager.startGame();
+    } else {
+      console.log("Cannot auto start - not fully initialized yet");
     }
   }
 
@@ -257,6 +290,7 @@ export default class GameController extends cc.Component {
     this.socketManager.reset();
     this.uiManager.reset();
     this.isInitialized = false;
+    this.isFullyInitialized = false; // UPDATED: Reset both flags
   }
 
   onDestroy() {
