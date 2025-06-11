@@ -339,6 +339,9 @@
     "chatControllerNode": {
       "__id__": 19
     },
+    "screenshotCamera": {
+      "__id__": 4
+    },
     "_id": "831AEOj+tI5rjiG2RP4VIn"
   },
   {
@@ -1831,7 +1834,6 @@
     "chatItemPrefab": {
       "__uuid__": "77031f2f-84bb-4845-a87e-db05dd824a39"
     },
-    "usernameLabel": null,
     "_id": "a6m3PTZmZHV5vsrIYXgJlB"
   },
   {

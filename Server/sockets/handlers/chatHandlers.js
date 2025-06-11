@@ -52,7 +52,6 @@ function setupChatHandlers(socket, io) {
     
     // Prevent spam: only allow one game start message per room within 5 seconds
     if (lastGameStart && (now - lastGameStart) < 5000) {
-      console.log(`Game start message blocked for room ${data.roomId} - too frequent`);
       return;
     }
     
