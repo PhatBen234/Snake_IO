@@ -1,20 +1,17 @@
-// CaptureUIManager.js
 cc.Class({
     extends: cc.Component,
 
     properties: {
-        // UI References
-        reviewCaptureBtn: cc.Button,    // Button để mở panel
-        capturePanel: cc.Node,          // Panel chứa tất cả UI
-        pageView: cc.PageView,          // PageView để hiển thị ảnh
-        previousBtn: cc.Button,         // Button Previous
-        nextBtn: cc.Button,             // Button Next
-        pageLabel: cc.Label,            // Label hiển thị page info
-        closeBtn: cc.Button,            // Button đóng panel
-        loadingLabel: cc.Label,         // Label hiển thị trạng thái loading
+        reviewCaptureBtn: cc.Button,    
+        capturePanel: cc.Node,         
+        pageView: cc.PageView,         
+        previousBtn: cc.Button,       
+        nextBtn: cc.Button,            
+        pageLabel: cc.Label,            
+        closeBtn: cc.Button,           
+        loadingLabel: cc.Label,        
         
-        // Prefab và Settings
-        captureItemPrefab: cc.Prefab,   // Prefab cho mỗi ảnh
+        captureItemPrefab: cc.Prefab,   
         
         serverUrl: {
             default: "http://localhost:3000",
@@ -36,11 +33,78 @@ cc.Class({
         this.screenshots = [];
         this.currentPageIndex = 0;
         this.totalPages = 0;
+        this.captureItems = []; // Store references to capture items
         
         // Hide panel initially
         this.capturePanel.active = false;
         this.updateNavigationButtons();
         this.updatePageLabel();
+        
+        // Setup PageView properties
+        this.setupPageView();
+    },
+
+    setupPageView() {
+        // Ensure PageView has proper structure
+        if (!this.pageView) {
+            console.error("PageView is not assigned!");
+            return;
+        }
+
+        // Check if PageView has view child (should be created by default)
+        let viewNode = this.pageView.node.getChildByName("view");
+        
+        if (!viewNode) {
+            // Create view node if it doesn't exist
+            viewNode = new cc.Node("view");
+            viewNode.parent = this.pageView.node;
+            
+            // Add Mask component to view
+            const mask = viewNode.addComponent(cc.Mask);
+            mask.type = cc.Mask.Type.RECT;
+            
+            // Set view size to match pageView
+            viewNode.setContentSize(this.pageView.node.getContentSize());
+        }
+
+        // Check if view has content child
+        let contentNode = viewNode.getChildByName("content");
+        
+        if (!contentNode) {
+            // Create content node if it doesn't exist
+            contentNode = new cc.Node("content");
+            contentNode.parent = viewNode;
+            
+            // Add Layout component to content
+            const layout = contentNode.addComponent(cc.Layout);
+            layout.type = cc.Layout.Type.HORIZONTAL;
+            layout.resizeMode = cc.Layout.ResizeMode.CONTAINER;
+            layout.paddingLeft = 0;
+            layout.paddingRight = 0;
+            layout.paddingTop = 0;
+            layout.paddingBottom = 0;
+            layout.spacingX = 0;
+            
+            // Set content size
+            contentNode.setContentSize(this.pageView.node.getContentSize());
+        }
+
+        // Configure PageView properties
+        this.pageView.direction = cc.PageView.Direction.Horizontal;
+        this.pageView.scrollThreshold = 0.5;
+        this.pageView.autoPageTurningThreshold = 100;
+        this.pageView.pageTurningSpeed = 0.3;
+        this.pageView.inertia = true;
+        
+        // Set content reference
+        this.pageView.content = contentNode;
+        
+        console.log("PageView setup completed:", {
+            pageView: this.pageView.node.name,
+            view: viewNode.name,
+            content: contentNode.name,
+            contentSize: contentNode.getContentSize()
+        });
     },
 
     async openCapturePanel() {
@@ -80,9 +144,13 @@ cc.Class({
                 
                 this.loadingLabel.node.active = false;
                 this.currentPageIndex = 0;
-                this.pageView.setCurrentPageIndex(0);
-                this.updateNavigationButtons();
-                this.updatePageLabel();
+                
+                // Set current page after creating all pages
+                this.scheduleOnce(() => {
+                    this.pageView.setCurrentPageIndex(0);
+                    this.updateNavigationButtons();
+                    this.updatePageLabel();
+                }, 0.1);
                 
             } else {
                 this.loadingLabel.string = "No screenshots found";
@@ -99,50 +167,166 @@ cc.Class({
         // Clear existing pages
         this.clearPageView();
         
+        // Ensure content exists
+        if (!this.pageView.content) {
+            console.error("PageView content is null! Make sure setupPageView() was called properly.");
+            return;
+        }
+        
+        console.log(`Creating ${this.screenshots.length} pages...`);
+        
         // Create pages for each screenshot
         for (let i = 0; i < this.screenshots.length; i++) {
             const screenshot = this.screenshots[i];
             await this.createCapturePage(screenshot, i);
         }
+        
+        // Force layout update
+        this.scheduleOnce(() => {
+            if (this.pageView.content) {
+                const layout = this.pageView.content.getComponent(cc.Layout);
+                if (layout) {
+                    layout.updateLayout();
+                    console.log("Layout updated, content children:", this.pageView.content.childrenCount);
+                }
+            }
+        }, 0);
     },
 
     async createCapturePage(screenshot, index) {
-        // Create page node
+        if (!this.captureItemPrefab) {
+            console.error("CaptureItem prefab is not assigned!");
+            return;
+        }
+
+        if (!this.pageView.content) {
+            console.error("PageView content is null!");
+            return;
+        }
+
+        // Create page node from prefab
         const pageNode = cc.instantiate(this.captureItemPrefab);
         
-        // Add to PageView
-        this.pageView.addPage(pageNode);
+        // Set appropriate size for the page
+        const pageViewSize = this.pageView.node.getContentSize();
+        pageNode.setContentSize(pageViewSize);
         
-        // Get components from prefab
-        const imageSprite = pageNode.getChildByName("ImageSprite").getComponent(cc.Sprite);
-        const infoLabel = pageNode.getChildByName("InfoLabel").getComponent(cc.Label);
-        const loadingSpinner = pageNode.getChildByName("LoadingSpinner"); // Optional loading indicator
+        console.log(`Creating page ${index + 1}/${this.screenshots.length}`, {
+            pageSize: pageNode.getContentSize(),
+            pageViewSize: pageViewSize
+        });
         
-        // Set info text
-        const playerNames = screenshot.players.map(p => p.name).join(", ");
-        const gameIdShort = screenshot.gameId.substring(0, 8);
-        infoLabel.string = `Game: ${gameIdShort}...\nPlayers: ${playerNames}`;
+        // Get CaptureItemController component
+        const captureItemController = pageNode.getComponent("CaptureItemController");
         
-        // Load image
-        if (loadingSpinner) loadingSpinner.active = true;
-        
-        try {
-            await this.loadImageForSprite(screenshot, imageSprite);
-            if (loadingSpinner) loadingSpinner.active = false;
-        } catch (error) {
-            console.error(`Error loading image for ${screenshot.gameId}:`, error);
-            infoLabel.string += "\n[Image load failed]";
-            if (loadingSpinner) loadingSpinner.active = false;
+        if (captureItemController) {
+            // Use controller methods
+            captureItemController.reset();
+            captureItemController.setScreenshotData(screenshot);
+            captureItemController.showLoading();
+            
+            // Store reference
+            this.captureItems.push(captureItemController);
+            
+            // Add page to content (NOT to pageView directly)
+            pageNode.parent = this.pageView.content;
+            
+            console.log(`Page ${index + 1} added to content. Total children: ${this.pageView.content.childrenCount}`);
+            
+            // Load image asynchronously
+            this.loadImageForCaptureItem(screenshot, captureItemController, index);
+            
+        } else {
+            // Fallback: Manual setup if controller is not available
+            console.warn("CaptureItemController not found, using manual setup");
+            await this.setupPageManually(pageNode, screenshot);
+            
+            // Add page to content
+            pageNode.parent = this.pageView.content;
         }
+    },
+
+    async setupPageManually(pageNode, screenshot) {
+        // Manual setup if controller is not available
+        const imageSprite = pageNode.getChildByName("ImageSprite");
+        const infoLabel = pageNode.getChildByName("InfoLabel");
+        const loadingSpinner = pageNode.getChildByName("LoadingSpinner");
+        
+        if (imageSprite) {
+            const spriteComponent = imageSprite.getComponent(cc.Sprite);
+            if (infoLabel) {
+                const labelComponent = infoLabel.getComponent(cc.Label);
+                const playerNames = screenshot.players.map(p => p.name).join(", ");
+                const gameIdShort = screenshot.gameId.substring(0, 8);
+                const timestamp = new Date(screenshot.timestamp).toLocaleString();
+                labelComponent.string = `Game: ${gameIdShort}...\nPlayers: ${playerNames}\nTime: ${timestamp}`;
+            }
+            
+            if (loadingSpinner) loadingSpinner.active = true;
+            
+            try {
+                await this.loadImageForSprite(screenshot, spriteComponent);
+                if (loadingSpinner) loadingSpinner.active = false;
+                imageSprite.active = true;
+            } catch (error) {
+                console.error(`Error loading image for ${screenshot.gameId}:`, error);
+                if (infoLabel) {
+                    const labelComponent = infoLabel.getComponent(cc.Label);
+                    labelComponent.string += "\n[Image load failed]";
+                }
+                if (loadingSpinner) loadingSpinner.active = false;
+            }
+        }
+    },
+
+    async loadImageForCaptureItem(screenshot, captureItemController, index) {
+        try {
+            const imageUrl = `${this.serverUrl}${screenshot.thumbnailPath}`;
+            console.log(`Loading image ${index + 1}/${this.screenshots.length} from:`, imageUrl);
+            
+            const spriteFrame = await this.loadImageFromUrl(imageUrl);
+            
+            // Set image using controller
+            captureItemController.setImage(spriteFrame);
+            
+            // Scale image to fit container
+            const pageViewSize = this.pageView.node.getContentSize();
+            const maxWidth = pageViewSize.width * 0.9;  // Leave some margin
+            const maxHeight = pageViewSize.height * 0.7; // Leave space for info text
+            captureItemController.scaleImageToContainer(maxWidth, maxHeight);
+            
+            console.log(`Image ${index + 1} loaded successfully`);
+            
+        } catch (error) {
+            console.error(`Error loading image ${index + 1}:`, error);
+            captureItemController.showError("Failed to load image");
+        }
+    },
+
+    loadImageFromUrl(imageUrl) {
+        return new Promise((resolve, reject) => {
+            cc.loader.load({
+                url: imageUrl,
+                type: "png",
+            }, (err, texture) => {
+                if (err) {
+                    console.error("Load image error:", err);
+                    reject(err);
+                    return;
+                }
+                
+                // Create sprite frame
+                const spriteFrame = new cc.SpriteFrame(texture);
+                resolve(spriteFrame);
+            });
+        });
     },
 
     loadImageForSprite(screenshot, sprite) {
         return new Promise((resolve, reject) => {
-            // Sử dụng thumbnailPath từ server response thay vì tự tạo URL
             const imageUrl = `${this.serverUrl}${screenshot.thumbnailPath}`;
             
             console.log("Loading image from URL:", imageUrl);
-            console.log("Screenshot data:", screenshot);
             
             cc.loader.load({
                 url: imageUrl,
@@ -161,15 +345,15 @@ cc.Class({
                 // Scale image to fit
                 this.scaleImageToFit(sprite.node);
                 
-                console.log(`Image loaded successfully for ${screenshot.gameId}`);
                 resolve();
             });
         });
     },
 
     scaleImageToFit(imageNode) {
-        const maxWidth = 400;  // Adjust based on your prefab size
-        const maxHeight = 300;
+        const pageViewSize = this.pageView.node.getContentSize();
+        const maxWidth = pageViewSize.width * 0.9;
+        const maxHeight = pageViewSize.height * 0.7;
         
         const imageSize = imageNode.getContentSize();
         
@@ -183,8 +367,14 @@ cc.Class({
     },
 
     clearPageView() {
-        // Remove all pages
-        this.pageView.removeAllPages();
+        // Clear content children instead of using removeAllPages()
+        if (this.pageView.content) {
+            this.pageView.content.removeAllChildren();
+            console.log("PageView content cleared");
+        }
+        
+        // Clear references
+        this.captureItems = [];
         this.screenshots = [];
         this.currentPageIndex = 0;
         this.totalPages = 0;

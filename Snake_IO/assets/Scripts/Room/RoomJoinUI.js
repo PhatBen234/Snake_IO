@@ -10,23 +10,20 @@ export default class RoomJoinUI extends cc.Component {
   socketManager = null;
   roomDataManager = null;
   uiController = null;
-  currentPlayerName = null; // Store current player name
-  gameSceneLoading = false; // Flag to prevent multiple scene loads
+  currentPlayerName = null; 
+  gameSceneLoading = false; 
 
   onLoad() {
-    // Initialize SocketManager immediately
     this.socketManager = new SocketManager();
   }
 
   start() {
-    // Use start() instead of onLoad() to ensure UIController is initialized
     this.initializeComponents();
     this.setupEventHandlers();
     this.connectToServer();
   }
 
   initializeComponents() {
-    // UIController should be available now
     this.uiController = this.getComponent(UIController);
 
     if (!this.uiController) {
@@ -36,7 +33,6 @@ export default class RoomJoinUI extends cc.Component {
   }
 
   setupEventHandlers() {
-    // Socket events - bind this context to avoid null reference
     this.socketManager.on("connect", (data) => {
       if (!this.socketManager) return;
       this.roomDataManager = new RoomDataManager(data.playerId);
@@ -60,7 +56,6 @@ export default class RoomJoinUI extends cc.Component {
       if (!this.socketManager) return;
       this.updateRoomIfExists(data.roomData);
 
-      // Send chat notification about player joining
       if (data.roomData && data.playerName && this.socketManager) {
         this.socketManager.emit("join-room", {
           roomId: data.roomData.id,
@@ -73,7 +68,6 @@ export default class RoomJoinUI extends cc.Component {
       if (!this.socketManager) return;
       this.updateRoomIfExists(data.roomData);
 
-      // Send chat notification about player leaving
       if (data.roomData && data.playerName && this.socketManager) {
         this.socketManager.emit("quit-room", {
           roomId: data.roomData.id,
@@ -99,7 +93,6 @@ export default class RoomJoinUI extends cc.Component {
         this.uiController.updateStatus("Game đã bắt đầu! Đang tải...");
       }
 
-      // Send game start notification to chat
       if (this.roomDataManager && this.socketManager) {
         this.socketManager.emit("start-game", {
           roomId: this.roomDataManager.getCurrentRoom(),
@@ -140,7 +133,6 @@ export default class RoomJoinUI extends cc.Component {
       }
     });
 
-    // UI events
     if (this.uiController) {
       this.uiController.on("createRoom", (data) =>
         this.createRoom(data.playerName, data.playerLimit)
@@ -167,7 +159,6 @@ export default class RoomJoinUI extends cc.Component {
     }
     this.updateUIRoomInfo();
 
-    // Store current player name for chat system
     const currentPlayer = data.roomData.players.find(
       (p) => p.id === this.socketManager.getPlayerId()
     );
@@ -176,7 +167,6 @@ export default class RoomJoinUI extends cc.Component {
       this.savePlayerName(this.currentPlayerName);
     }
 
-    // Send join notification to chat
     if (this.socketManager && this.currentPlayerName) {
       this.socketManager.emit("join-room", {
         roomId: data.roomId,
@@ -190,7 +180,6 @@ export default class RoomJoinUI extends cc.Component {
       this.roomDataManager.updateRoomData(roomData);
       this.updateUIRoomInfo();
 
-      // Update player name if it changed
       const currentPlayer = roomData.players.find(
         (p) => p.id === this.socketManager.getPlayerId()
       );
@@ -204,10 +193,8 @@ export default class RoomJoinUI extends cc.Component {
   createRoom(playerName, playerLimit = 4) {
     if (!this.validateConnection()) return;
 
-    // Validate player limit on client side
     if (!this.validatePlayerLimit(playerLimit)) return;
 
-    // Store player name
     this.currentPlayerName = playerName;
     this.savePlayerName(playerName);
 
@@ -224,7 +211,6 @@ export default class RoomJoinUI extends cc.Component {
   joinRoom(roomId, playerName) {
     if (!this.validateConnection()) return;
 
-    // Store player name
     this.currentPlayerName = playerName;
     this.savePlayerName(playerName);
 
@@ -254,7 +240,6 @@ export default class RoomJoinUI extends cc.Component {
     if (!this.validateConnection() || !this.roomDataManager?.getCurrentRoom())
       return;
 
-    // Send leave notification to chat
     this.socketManager.emit("quit-room", {
       roomId: this.roomDataManager.getCurrentRoom(),
       playerName: this.currentPlayerName,
@@ -322,7 +307,6 @@ export default class RoomJoinUI extends cc.Component {
     }
   }
 
-  // Save player name to global storage for chat system
   savePlayerName(playerName) {
     window.currentPlayerName = playerName;
   }
@@ -332,12 +316,12 @@ export default class RoomJoinUI extends cc.Component {
     window.currentRoomId = this.roomDataManager.getCurrentRoom();
     window.currentPlayerId = this.socketManager.getPlayerId();
     window.roomData = this.roomDataManager.getRoomData();
-    window.currentPlayerName = this.currentPlayerName; // Save player name
+    window.currentPlayerName = this.currentPlayerName; 
   }
 
   loadGameScene() {
     if (this.gameSceneLoading) {
-      return; // Prevent multiple scene loads
+      return; 
     }
 
     this.gameSceneLoading = true;
@@ -352,7 +336,7 @@ export default class RoomJoinUI extends cc.Component {
             this.uiController.updateStatus("Lỗi khi tải game!");
             this.uiController.showUI();
           }
-          this.gameSceneLoading = false; // Reset flag on error
+          this.gameSceneLoading = false; 
         } else {
           console.log("Game scene loaded successfully!");
         }
