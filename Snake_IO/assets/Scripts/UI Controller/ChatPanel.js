@@ -5,10 +5,7 @@ cc.Class({
         editBox: cc.EditBox,
         scrollView: cc.ScrollView,
         chatContent: cc.Node,
-        chatItemPrefab: cc.Prefab,
-        usernameLabel: cc.Label,
-        chatToggleButton: cc.Button, // Optional toggle button
-        onlineIndicator: cc.Node // Optional online status indicator
+        chatItemPrefab: cc.Prefab
     },
 
     onLoad() {
@@ -37,7 +34,6 @@ cc.Class({
         // Initialize
         this.initializeSocket();
         this.setupEventListeners();
-        this.setupUI();
     },
 
     onDestroy() {
@@ -60,7 +56,6 @@ cc.Class({
         }
 
         this.setupSocketEvents();
-        this.updateConnectionStatus(true);
         this.isInitialized = true;
         
         // Process queued messages
@@ -111,12 +106,10 @@ cc.Class({
 
         // Connection status
         this.socket.on('connect', () => {
-            this.updateConnectionStatus(true);
             this.displaySystemMessage('Connected to chat server', cc.Color.GREEN);
         });
 
         this.socket.on('disconnect', () => {
-            this.updateConnectionStatus(false);
             this.displaySystemMessage('Disconnected from chat server', cc.Color.RED);
         });
     },
@@ -132,28 +125,6 @@ cc.Class({
         // Interaction events
         if (this.node.parent) {
             this.node.parent.on(cc.Node.EventType.TOUCH_START, this.onUserInteraction, this);
-        }
-
-        // Toggle button
-        if (this.chatToggleButton) {
-            this.chatToggleButton.node.on('click', this.toggleChatUI, this);
-        }
-    },
-
-    setupUI() {
-        // Update username display
-        if (this.usernameLabel && this.username) {
-            this.usernameLabel.string = this.username;
-        }
-
-        // Setup online indicator
-        this.updateConnectionStatus(false);
-    },
-
-    updateConnectionStatus(isOnline) {
-        if (this.onlineIndicator) {
-            this.onlineIndicator.active = isOnline;
-            this.onlineIndicator.color = isOnline ? cc.Color.GREEN : cc.Color.RED;
         }
     },
 
@@ -220,15 +191,6 @@ cc.Class({
         }
     },
 
-    toggleChatUI() {
-        if (this.editBox.node.active) {
-            this.hideChatUI();
-        } else {
-            this.showChatUI();
-            this.editBox.focus();
-        }
-    },
-
     startHideTimer() {
         this.clearHideTimer();
         this.hideTimer = setTimeout(() => {
@@ -269,17 +231,36 @@ cc.Class({
     },
 
     validateMessage(message) {
+        // Check command first
+        if (this.handleCommand(message)) {
+            return false; // Command handled, don't send as regular message
+        }
+        
         if (message.length > 200) {
             this.displaySystemMessage('Message too long (max 200 characters)', cc.Color.RED);
             return false;
         }
 
         if (!this.socket || !this.currentRoom || !this.username) {
-            this.displaySystemMessage('Cannot send message: Not connected', cc.Color.RED);
+            this.displaySystemMessage('Cannot send message: Not connected to room', cc.Color.RED);
+            return false;
+        }
+
+        // Filter inappropriate content (basic)
+        if (this.containsInappropriateContent(message)) {
+            this.displaySystemMessage('Message contains inappropriate content', cc.Color.RED);
             return false;
         }
 
         return true;
+    },
+
+    containsInappropriateContent(message) {
+        // Basic profanity filter - you can expand this
+        const bannedWords = ['spam', 'hack', 'cheat']; // Add more as needed
+        const lowerMessage = message.toLowerCase();
+        
+        return bannedWords.some(word => lowerMessage.includes(word));
     },
 
     sendChatMessage(message) {
@@ -288,21 +269,31 @@ cc.Class({
             playerId: this.playerId,
             username: this.username,
             message: message,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            messageId: this.generateMessageId()
         };
 
-        // Add to queue if not connected
         if (!this.socket || !this.socket.connected) {
             this.messageQueue.push(chatData);
             this.displaySystemMessage('Message queued (offline)', cc.Color.YELLOW);
             return;
         }
 
-        // Send immediately
-        this.socket.emit('chat-message', chatData);
-        
-        // Show own message immediately for better UX
-        this.displayChatMessage(chatData);
+        // Send with acknowledgment
+        this.socket.emit('chat-message', chatData, (response) => {
+            if (response && response.success) {
+                // Message sent successfully
+                console.log('Message sent successfully');
+            } else {
+                // Handle send failure
+                this.displaySystemMessage('Failed to send message', cc.Color.RED);
+                this.messageQueue.push(chatData); // Queue for retry
+            }
+        });
+    },
+
+    generateMessageId() {
+        return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     },
 
     processMessageQueue() {
@@ -463,10 +454,6 @@ cc.Class({
         this.username = username;
         window.currentUsername = username;
         window.currentPlayerName = username;
-        
-        if (this.usernameLabel) {
-            this.usernameLabel.string = username;
-        }
     },
 
     setCurrentRoom(roomId) {
@@ -554,74 +541,6 @@ cc.Class({
         helpText.forEach(text => {
             this.displaySystemMessage(text, cc.Color.CYAN);
         });
-    },
-
-    // Enhanced validation
-    validateMessage(message) {
-        // Check command first
-        if (this.handleCommand(message)) {
-            return false; // Command handled, don't send as regular message
-        }
-        
-        if (message.length > 200) {
-            this.displaySystemMessage('Message too long (max 200 characters)', cc.Color.RED);
-            return false;
-        }
-
-        if (!this.socket || !this.currentRoom || !this.username) {
-            this.displaySystemMessage('Cannot send message: Not connected to room', cc.Color.RED);
-            return false;
-        }
-
-        // Filter inappropriate content (basic)
-        if (this.containsInappropriateContent(message)) {
-            this.displaySystemMessage('Message contains inappropriate content', cc.Color.RED);
-            return false;
-        }
-
-        return true;
-    },
-
-    containsInappropriateContent(message) {
-        // Basic profanity filter - you can expand this
-        const bannedWords = ['spam', 'hack', 'cheat']; // Add more as needed
-        const lowerMessage = message.toLowerCase();
-        
-        return bannedWords.some(word => lowerMessage.includes(word));
-    },
-
-    // Enhanced message sending with retry logic
-    sendChatMessage(message) {
-        const chatData = {
-            roomId: this.currentRoom,
-            playerId: this.playerId,
-            username: this.username,
-            message: message,
-            timestamp: Date.now(),
-            messageId: this.generateMessageId()
-        };
-
-        if (!this.socket || !this.socket.connected) {
-            this.messageQueue.push(chatData);
-            this.displaySystemMessage('Message queued (offline)', cc.Color.YELLOW);
-            return;
-        }
-
-        // Send with acknowledgment
-        this.socket.emit('chat-message', chatData, (response) => {
-            if (response && response.success) {
-                // Message sent successfully
-                console.log('Message sent successfully');
-            } else {
-                // Handle send failure
-                this.displaySystemMessage('Failed to send message', cc.Color.RED);
-                this.messageQueue.push(chatData); // Queue for retry
-            }
-        });
-    },
-
-    generateMessageId() {
-        return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     },
 
     // Cleanup
