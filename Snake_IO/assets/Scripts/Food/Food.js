@@ -35,7 +35,7 @@ export default class Food extends cc.Component {
 
     this.updatePosition(foodData.position);
     this.setSize(this.gridSize);
-    // Đã tắt setRandomColor() - giữ màu mặc định
+
     this.startEffects();
   }
 

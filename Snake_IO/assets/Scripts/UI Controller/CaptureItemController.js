@@ -3,28 +3,25 @@ cc.Class({
     extends: cc.Component,
 
     properties: {
-        imageSprite: cc.Sprite,      // Sprite hiển thị ảnh
-        infoLabel: cc.Label,         // Label hiển thị thông tin
-        loadingSpinner: cc.Node,     // Loading indicator (optional)
-        backgroundSprite: cc.Sprite, // Background cho item
+        imageSprite: cc.Sprite,      
+        infoLabel: cc.Label,         
+        loadingSpinner: cc.Node,     
+        backgroundSprite: cc.Sprite,
     },
 
     onLoad() {
-        // Initialize
         this.setupBackground();
         this.reset();
     },
 
     setupBackground() {
-        // Setup background color hoặc sprite nếu cần
+        
         if (this.backgroundSprite) {
-            // Có thể set màu nền hoặc texture
-            // this.backgroundSprite.node.color = cc.Color.GRAY;
+            
         }
     },
 
     reset() {
-        // Reset về trạng thái ban đầu
         if (this.imageSprite) {
             this.imageSprite.spriteFrame = null;
             this.imageSprite.node.active = false;
@@ -40,7 +37,6 @@ cc.Class({
     },
 
     setScreenshotData(screenshot) {
-        // Set thông tin screenshot
         if (this.infoLabel && screenshot) {
             const playerNames = screenshot.players.map(p => p.name).join(", ");
             const gameIdShort = screenshot.gameId.substring(0, 8);
@@ -82,7 +78,6 @@ cc.Class({
         }
     },
 
-    // Method để scale image phù hợp với container
     scaleImageToContainer(maxWidth, maxHeight) {
         if (!this.imageSprite || !this.imageSprite.spriteFrame) return;
         
