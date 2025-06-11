@@ -54,15 +54,12 @@ cc.Class({
     },
 
     displayLeaderboard(leaderboardData) {
-        // Xóa tất cả các entry cũ
         this.clearLeaderboard();
 
-        // Tạo entry cho mỗi người chơi
         leaderboardData.forEach((entry, index) => {
             this.createLeaderboardEntry(entry, index);
         });
 
-        // Cập nhật layout
         if (this.leaderboardLayout) {
             this.leaderboardLayout.updateLayout();
         }
@@ -74,25 +71,20 @@ cc.Class({
             return;
         }
 
-        // Tạo node từ prefab
         const entryNode = cc.instantiate(this.entryPrefab);
 
-        // Tìm label component trong prefab
         const entryLabel = entryNode.getComponent(cc.Label);
         if (!entryLabel) {
             console.error("Prefab không có Label component");
             return;
         }
 
-        // Tạo text cho entry
         const rankText = `No.${entryData.rank || (index + 1)}:  ${entryData.playerName || 'Unknown'}`;
         const scoreText = `Score: ${entryData.score || 0}`;
         entryLabel.string = `${rankText}\n${scoreText}`;
 
-        // Thêm màu sắc đặc biệt cho top 3
         this.applyRankStyling(entryLabel, entryData.rank || (index + 1));
 
-        // Thêm vào layout
         entryNode.parent = this.leaderboardLayout.node;
     },
 
@@ -113,7 +105,6 @@ cc.Class({
     clearLeaderboard() {
         if (!this.leaderboardLayout) return;
 
-        // Xóa tất cả children của layout
         const children = this.leaderboardLayout.node.children;
         for (let i = children.length - 1; i >= 0; i--) {
             children[i].destroy();
@@ -123,7 +114,6 @@ cc.Class({
     showError(errorMessage) {
         this.clearLeaderboard();
 
-        // Tạo một entry hiển thị lỗi
         if (this.entryPrefab && this.leaderboardLayout) {
             const errorNode = cc.instantiate(this.entryPrefab);
             const errorLabel = errorNode.getComponent(cc.Label);
@@ -135,12 +125,10 @@ cc.Class({
         }
     },
 
-    // Phương thức để refresh leaderboard từ bên ngoài
     refreshLeaderboard() {
         this.loadLeaderboard();
     },
 
-    // Phương thức để show/hide panel
     showPanel(show = true) {
         if (this.leaderboardPanel) {
             this.leaderboardPanel.active = show;
@@ -152,7 +140,6 @@ cc.Class({
     },
 
     onDestroy() {
-        // Cleanup event listeners
         if (this.openButton) {
             this.openButton.node.off('click', this.onOpenButtonClicked, this);
         }
