@@ -1,9 +1,9 @@
 // SnakeConstants.js - Chứa các hằng số và cấu hình
 export const SNAKE_CONFIG = {
-  GRID_SIZE: 20,
-  HEAD_SIZE_RATIO: 1.0,
-  BODY_SIZE_RATIO: 0.7,
-  TAIL_SIZE_RATIO: 0.8,
+  GRID_SIZE: 30,
+  HEAD_SIZE_RATIO: 1.3,
+  BODY_SIZE_RATIO: 1.0,
+  TAIL_SIZE_RATIO: 1.1,
   CANVAS_WIDTH: 960,
   CANVAS_HEIGHT: 640,
 

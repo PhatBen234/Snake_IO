@@ -27,7 +27,7 @@ app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/screenshot", screenshotRoutes);
 
 // Serve static files from resources folder (for direct image access)
-app.use("/resources", express.static(path.join(__dirname, "resources")));
+// app.use("/resources", express.static(path.join(__dirname, "resources")));
 
 const server = http.createServer(app);
 
