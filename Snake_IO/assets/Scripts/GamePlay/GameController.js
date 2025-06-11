@@ -33,6 +33,9 @@ export default class GameController extends cc.Component {
   @property(cc.Node)
   chatControllerNode = null;
 
+  @property(cc.Camera)
+  screenshotCamera = null;
+
   socket = null;
   playerId = null;
   currentRoom = null;
@@ -269,10 +272,11 @@ export default class GameController extends cc.Component {
       roomId: this.currentRoom,
       playerId: this.playerId,
     });
-    
+
     // Clear chat history through ChatController
     if (this.chatControllerNode) {
-      const chatController = this.chatControllerNode.getComponent('ChatController');
+      const chatController =
+        this.chatControllerNode.getComponent("ChatController");
       if (chatController) {
         chatController.clearChatHistory();
       }
@@ -445,20 +449,21 @@ export default class GameController extends cc.Component {
   handleGameEnd(data) {
     this.isGameActive = false;
 
-    let statusMessage = '';
+    let statusMessage = "";
     if (data.isDraw) {
-      statusMessage = 'Game ended in a draw!';
+      statusMessage = "Game ended in a draw!";
     } else if (data.winner) {
       statusMessage = `Game ended! Winner: ${data.winner}`;
     } else {
-      statusMessage = 'Game ended!';
+      statusMessage = "Game ended!";
     }
 
     this.updateStatus(statusMessage);
 
     // Send game end message to chat through ChatController
     if (this.chatControllerNode) {
-      const chatController = this.chatControllerNode.getComponent('ChatController');
+      const chatController =
+        this.chatControllerNode.getComponent("ChatController");
       if (chatController) {
         chatController.displaySystemMessage(statusMessage, cc.Color.YELLOW);
       }
@@ -522,6 +527,170 @@ export default class GameController extends cc.Component {
 
     // Add entrance animation
     this.animateScoreTableEntrance();
+
+    // Chụp màn hình sau khi animation hoàn thành
+    setTimeout(() => {
+      this.captureLeaderboardScreenshot(top3Players);
+    }, 1000);
+  }
+  captureLeaderboardScreenshot(playersData) {
+    try {
+      if (!this.screenshotCamera) {
+        console.warn("Screenshot camera not assigned");
+        return;
+      }
+
+      const width = 300;
+      const height = 200;
+
+      const renderTexture = new cc.RenderTexture();
+      const gl = cc.game._renderContext;
+
+      renderTexture.initWithSize(width, height, gl.STENCIL_INDEX8);
+
+      this.screenshotCamera.targetTexture = renderTexture;
+      this.screenshotCamera.render(this.scoreTablePopup);
+
+      const data = renderTexture.readPixels();
+      if (data) {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        const imageData = ctx.createImageData(width, height);
+
+        for (let i = 0; i < data.length; i += 4) {
+          imageData.data[i] = data[i];
+          imageData.data[i + 1] = data[i + 1];
+          imageData.data[i + 2] = data[i + 2];
+          imageData.data[i + 3] = data[i + 3];
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+
+        // ===== CÁCH 3: Tạo canvas thứ 2 để flip =====
+        const flippedCanvas = document.createElement("canvas");
+        flippedCanvas.width = width;
+        flippedCanvas.height = height;
+        const flippedCtx = flippedCanvas.getContext("2d");
+
+        // Flip và vẽ
+        flippedCtx.save();
+        flippedCtx.scale(1, -1);
+        flippedCtx.translate(0, -height);
+        flippedCtx.drawImage(canvas, 0, 0);
+        flippedCtx.restore();
+
+        const base64Image = flippedCanvas.toDataURL("image/jpeg", 0.7);
+        this.uploadScreenshot(base64Image, playersData);
+      }
+
+      this.screenshotCamera.targetTexture = null;
+      renderTexture.destroy();
+    } catch (error) {
+      console.error("Screenshot capture failed:", error);
+    }
+  }
+
+  // Method để upload screenshot lên server
+  async uploadScreenshot(base64Image, playersData) {
+    try {
+      // Nén ảnh trước khi gửi
+      const compressedImage = await this.compressBase64Image(
+        base64Image,
+        300,
+        200,
+        0.6
+      );
+
+      const gameId = `game_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
+      const payload = {
+        gameId: gameId,
+        screenshot: compressedImage,
+        players: playersData.map((player) => ({
+          id: player.id,
+          name: player.name || `Player_${player.id?.substring(0, 4)}`,
+          score: player.score,
+        })),
+        timestamp: new Date().toISOString(),
+        roomId: this.currentRoom,
+      };
+
+      // Kiểm tra kích thước payload
+      const payloadSize = JSON.stringify(payload).length;
+      console.log(`Payload size: ${(payloadSize / 1024 / 1024).toFixed(2)} MB`);
+
+      if (payloadSize > 8 * 1024 * 1024) {
+        // 8MB
+        console.warn("Payload too large, compressing further...");
+        const furtherCompressed = await this.compressBase64Image(
+          base64Image,
+          200,
+          150,
+          0.4
+        );
+        payload.screenshot = furtherCompressed;
+      }
+
+      const response = await fetch(
+        "http://localhost:3000/api/screenshot/upload",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log("Screenshot uploaded successfully:", result.filename);
+      } else {
+        console.error("Upload failed:", result.message);
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+    }
+  }
+
+  compressBase64Image(
+    base64String,
+    maxWidth = 300,
+    maxHeight = 200,
+    quality = 0.7
+  ) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        // Tính toán kích thước mới giữ tỉ lệ
+        let { width, height } = img;
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width *= ratio;
+          height *= ratio;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Vẽ ảnh với kích thước mới
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Xuất với chất lượng thấp hơn
+        const compressedBase64 = canvas.toDataURL("image/jpeg", quality);
+        resolve(compressedBase64);
+      };
+      img.src = base64String;
+    });
   }
 
   // Create individual player score label
