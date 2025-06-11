@@ -13,7 +13,7 @@
   },
   {
     "__type__": "cc.Node",
-    "_name": "Cherry",
+    "_name": "Apple",
     "_objFlags": 0,
     "_parent": null,
     "_children": [
@@ -43,8 +43,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 40,
-      "height": 40
+      "width": 0,
+      "height": 0
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -55,7 +55,7 @@
       "__type__": "TypedArray",
       "ctor": "Float64Array",
       "array": [
-        -55.246,
+        0,
         0,
         0,
         0,
@@ -110,8 +110,8 @@
     },
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 40,
-      "height": 40
+      "width": 12,
+      "height": 14
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -163,7 +163,7 @@
     "_srcBlendFactor": 770,
     "_dstBlendFactor": 771,
     "_spriteFrame": {
-      "__uuid__": "57bb9316-9aba-4556-9110-b72267387a86"
+      "__uuid__": "dcfd3366-1c89-469b-a390-d1315d9e1f03"
     },
     "_type": 0,
     "_sizeMode": 0,
@@ -176,9 +176,7 @@
     "_fillStart": 0,
     "_fillRange": 0,
     "_isTrimmedMode": true,
-    "_atlas": {
-      "__uuid__": "7e1413ae-7a93-4dee-a5f9-39d80dc4f3e6"
-    },
+    "_atlas": null,
     "_id": ""
   },
   {
@@ -190,11 +188,11 @@
     },
     "_enabled": true,
     "_defaultClip": {
-      "__uuid__": "0bae38af-29ae-4019-aba0-5332f00c97c1"
+      "__uuid__": "39699380-83a3-447a-b2b5-3a29e1683cdf"
     },
     "_clips": [
       {
-        "__uuid__": "0bae38af-29ae-4019-aba0-5332f00c97c1"
+        "__uuid__": "39699380-83a3-447a-b2b5-3a29e1683cdf"
       }
     ],
     "playOnLoad": true,
@@ -225,7 +223,7 @@
       "x": 0,
       "y": 0
     },
-    "_radius": 20,
+    "_radius": 8,
     "_id": ""
   },
   {
@@ -236,7 +234,9 @@
       "__id__": 1
     },
     "_enabled": true,
-    "fruitImage": null,
+    "fruitImage": {
+      "__id__": 2
+    },
     "animation": null,
     "_id": ""
   },
