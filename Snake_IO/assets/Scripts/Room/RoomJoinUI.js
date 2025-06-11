@@ -14,37 +14,54 @@ export default class RoomJoinUI extends cc.Component {
   gameSceneLoading = false; // Flag to prevent multiple scene loads
 
   onLoad() {
+    // Initialize SocketManager immediately
+    this.socketManager = new SocketManager();
+  }
+
+  start() {
+    // Use start() instead of onLoad() to ensure UIController is initialized
     this.initializeComponents();
     this.setupEventHandlers();
     this.connectToServer();
   }
 
   initializeComponents() {
-    this.socketManager = new SocketManager();
+    // UIController should be available now
     this.uiController = this.getComponent(UIController);
+
+    if (!this.uiController) {
+      console.error("UIController component not found!");
+      return;
+    }
   }
 
   setupEventHandlers() {
-    // Socket events
+    // Socket events - bind this context to avoid null reference
     this.socketManager.on("connect", (data) => {
+      if (!this.socketManager) return;
       this.roomDataManager = new RoomDataManager(data.playerId);
-      this.uiController.updateStatus("Đã kết nối server");
-      this.uiController.setButtonsEnabled(true);
+      if (this.uiController) {
+        this.uiController.updateStatus("Đã kết nối server");
+        this.uiController.setButtonsEnabled(true);
+      }
     });
 
     this.socketManager.on("room-created", (data) => {
+      if (!this.socketManager) return;
       this.handleRoomJoined(data, "Đã tạo phòng thành công");
     });
 
     this.socketManager.on("joined-room", (data) => {
+      if (!this.socketManager) return;
       this.handleRoomJoined(data, "Đã vào phòng thành công");
     });
 
     this.socketManager.on("player-joined", (data) => {
+      if (!this.socketManager) return;
       this.updateRoomIfExists(data.roomData);
 
       // Send chat notification about player joining
-      if (data.roomData && data.playerName) {
+      if (data.roomData && data.playerName && this.socketManager) {
         this.socketManager.emit("join-room", {
           roomId: data.roomData.id,
           playerName: data.playerName,
@@ -53,10 +70,11 @@ export default class RoomJoinUI extends cc.Component {
     });
 
     this.socketManager.on("player-left", (data) => {
+      if (!this.socketManager) return;
       this.updateRoomIfExists(data.roomData);
 
       // Send chat notification about player leaving
-      if (data.roomData && data.playerName) {
+      if (data.roomData && data.playerName && this.socketManager) {
         this.socketManager.emit("quit-room", {
           roomId: data.roomData.id,
           playerName: data.playerName,
@@ -65,52 +83,74 @@ export default class RoomJoinUI extends cc.Component {
     });
 
     this.socketManager.on("new-host", (data) => {
+      if (!this.socketManager) return;
       if (data.newHostId === this.socketManager.getPlayerId()) {
         this.roomDataManager.setAsHost(true);
-        this.uiController.updateStatus("Bạn đã trở thành chủ phòng mới!");
+        if (this.uiController) {
+          this.uiController.updateStatus("Bạn đã trở thành chủ phòng mới!");
+        }
       }
       this.updateRoomIfExists(data.roomData);
     });
 
     this.socketManager.on("game-started", () => {
-      this.uiController.updateStatus("Game đã bắt đầu! Đang tải...");
+      if (!this.socketManager) return;
+      if (this.uiController) {
+        this.uiController.updateStatus("Game đã bắt đầu! Đang tải...");
+      }
 
       // Send game start notification to chat
-      this.socketManager.emit("start-game", {
-        roomId: this.roomDataManager.getCurrentRoom(),
-      });
+      if (this.roomDataManager && this.socketManager) {
+        this.socketManager.emit("start-game", {
+          roomId: this.roomDataManager.getCurrentRoom(),
+        });
+      }
 
       this.saveGameData();
       this.loadGameScene();
     });
 
     this.socketManager.on("room-full", () => {
-      this.uiController.updateStatus("Phòng đã đầy!");
+      if (!this.socketManager) return;
+      if (this.uiController) {
+        this.uiController.updateStatus("Phòng đã đầy!");
+      }
     });
 
     this.socketManager.on("join-failed", (data) => {
-      this.uiController.updateStatus(`Không thể vào phòng: ${data.reason}`);
+      if (!this.socketManager) return;
+      if (this.uiController) {
+        this.uiController.updateStatus(`Không thể vào phòng: ${data.reason}`);
+      }
     });
 
     this.socketManager.on("create-failed", (data) => {
-      this.uiController.updateStatus(`Không thể tạo phòng: ${data.reason}`);
+      if (!this.socketManager) return;
+      if (this.uiController) {
+        this.uiController.updateStatus(`Không thể tạo phòng: ${data.reason}`);
+      }
     });
 
     this.socketManager.on("disconnect", () => {
-      this.uiController.updateStatus("Mất kết nối server");
-      this.uiController.setButtonsEnabled(false);
-      this.uiController.showJoinPanel();
+      if (!this.socketManager) return;
+      if (this.uiController) {
+        this.uiController.updateStatus("Mất kết nối server");
+        this.uiController.setButtonsEnabled(false);
+        this.uiController.showJoinPanel();
+      }
     });
 
     // UI events
-    this.uiController.on("createRoom", (data) =>
-      this.createRoom(data.playerName, data.playerLimit)
-    );
-    this.uiController.on("joinRoom", (data) =>
-      this.joinRoom(data.roomId, data.playerName)
-    );
-    this.uiController.on("startGame", () => this.startGame());
-    this.uiController.on("leaveRoom", () => this.leaveRoom());
+    if (this.uiController) {
+      this.uiController.on("createRoom", (data) =>
+        this.createRoom(data.playerName, data.playerLimit)
+      );
+      this.uiController.on("joinRoom", (data) =>
+        this.joinRoom(data.roomId, data.playerName)
+      );
+      this.uiController.on("startGame", () => this.startGame());
+      this.uiController.on("leaveRoom", () => this.leaveRoom());
+    }
   }
 
   connectToServer() {
@@ -118,10 +158,14 @@ export default class RoomJoinUI extends cc.Component {
   }
 
   handleRoomJoined(data, statusMessage) {
+    if (!this.roomDataManager || !this.socketManager) return;
+
     this.roomDataManager.setRoomData(data.roomId, data.roomData, data.isHost);
-    this.uiController.showLobbyPanel();
+    if (this.uiController) {
+      this.uiController.showLobbyPanel();
+      this.uiController.updateStatus(statusMessage);
+    }
     this.updateUIRoomInfo();
-    this.uiController.updateStatus(statusMessage);
 
     // Store current player name for chat system
     const currentPlayer = data.roomData.players.find(
@@ -133,10 +177,12 @@ export default class RoomJoinUI extends cc.Component {
     }
 
     // Send join notification to chat
-    this.socketManager.emit("join-room", {
-      roomId: data.roomId,
-      playerName: this.currentPlayerName,
-    });
+    if (this.socketManager && this.currentPlayerName) {
+      this.socketManager.emit("join-room", {
+        roomId: data.roomId,
+        playerName: this.currentPlayerName,
+      });
+    }
   }
 
   updateRoomIfExists(roomData) {
@@ -165,7 +211,9 @@ export default class RoomJoinUI extends cc.Component {
     this.currentPlayerName = playerName;
     this.savePlayerName(playerName);
 
-    this.uiController.updateStatus("Đang tạo phòng...");
+    if (this.uiController) {
+      this.uiController.updateStatus("Đang tạo phòng...");
+    }
     this.socketManager.emit("create-room", {
       playerId: this.socketManager.getPlayerId(),
       playerName: playerName,
@@ -180,7 +228,9 @@ export default class RoomJoinUI extends cc.Component {
     this.currentPlayerName = playerName;
     this.savePlayerName(playerName);
 
-    this.uiController.updateStatus("Đang vào phòng...");
+    if (this.uiController) {
+      this.uiController.updateStatus("Đang vào phòng...");
+    }
     this.socketManager.emit("join-room", {
       roomId: roomId,
       playerId: this.socketManager.getPlayerId(),
@@ -191,7 +241,9 @@ export default class RoomJoinUI extends cc.Component {
   startGame() {
     if (!this.validateGameStart()) return;
 
-    this.uiController.updateStatus("Đang bắt đầu game...");
+    if (this.uiController) {
+      this.uiController.updateStatus("Đang bắt đầu game...");
+    }
     this.socketManager.emit("start-game", {
       roomId: this.roomDataManager.getCurrentRoom(),
       playerId: this.socketManager.getPlayerId(),
@@ -214,13 +266,17 @@ export default class RoomJoinUI extends cc.Component {
     });
 
     this.roomDataManager.clearRoom();
-    this.uiController.showJoinPanel();
-    this.uiController.updateStatus("Đã rời khỏi phòng");
+    if (this.uiController) {
+      this.uiController.showJoinPanel();
+      this.uiController.updateStatus("Đã rời khỏi phòng");
+    }
   }
 
   validateConnection() {
-    if (!this.socketManager.isConnected()) {
-      this.uiController.updateStatus("Chưa kết nối tới server!");
+    if (!this.socketManager || !this.socketManager.isConnected()) {
+      if (this.uiController) {
+        this.uiController.updateStatus("Chưa kết nối tới server!");
+      }
       return false;
     }
     return true;
@@ -236,7 +292,9 @@ export default class RoomJoinUI extends cc.Component {
     }
 
     if (this.roomDataManager.getPlayerCount() < 2) {
-      this.uiController.updateStatus("Cần ít nhất 2 người chơi để bắt đầu!");
+      if (this.uiController) {
+        this.uiController.updateStatus("Cần ít nhất 2 người chơi để bắt đầu!");
+      }
       return false;
     }
 
@@ -245,19 +303,23 @@ export default class RoomJoinUI extends cc.Component {
 
   validatePlayerLimit(limit) {
     if (typeof limit !== "number" || isNaN(limit) || limit < 2 || limit > 4) {
-      this.uiController.updateStatus("Giới hạn người chơi phải từ 2 đến 4!");
+      if (this.uiController) {
+        this.uiController.updateStatus("Giới hạn người chơi phải từ 2 đến 4!");
+      }
       return false;
     }
     return true;
   }
 
   updateUIRoomInfo() {
-    this.uiController.updateRoomInfo(
-      this.roomDataManager.getCurrentRoom(),
-      this.roomDataManager.getRoomData(),
-      this.roomDataManager.getIsHost(),
-      this.socketManager.getPlayerId()
-    );
+    if (this.uiController && this.roomDataManager) {
+      this.uiController.updateRoomInfo(
+        this.roomDataManager.getCurrentRoom(),
+        this.roomDataManager.getRoomData(),
+        this.roomDataManager.getIsHost(),
+        this.socketManager.getPlayerId()
+      );
+    }
   }
 
   // Save player name to global storage for chat system
@@ -279,13 +341,17 @@ export default class RoomJoinUI extends cc.Component {
     }
 
     this.gameSceneLoading = true;
-    this.uiController.hideUI();
+    if (this.uiController) {
+      this.uiController.hideUI();
+    }
 
     setTimeout(() => {
       cc.director.loadScene("GameScene", (err) => {
         if (err) {
-          this.uiController.updateStatus("Lỗi khi tải game!");
-          this.uiController.showUI();
+          if (this.uiController) {
+            this.uiController.updateStatus("Lỗi khi tải game!");
+            this.uiController.showUI();
+          }
           this.gameSceneLoading = false; // Reset flag on error
         } else {
           console.log("Game scene loaded successfully!");
