@@ -127,7 +127,7 @@ cc.Class({
         if (loadingSpinner) loadingSpinner.active = true;
         
         try {
-            await this.loadImageForSprite(screenshot.gameId, imageSprite);
+            await this.loadImageForSprite(screenshot, imageSprite);
             if (loadingSpinner) loadingSpinner.active = false;
         } catch (error) {
             console.error(`Error loading image for ${screenshot.gameId}:`, error);
@@ -136,11 +136,13 @@ cc.Class({
         }
     },
 
-    loadImageForSprite(gameId, sprite) {
+    loadImageForSprite(screenshot, sprite) {
         return new Promise((resolve, reject) => {
-            const imageUrl = `${this.serverUrl}/api/screenshot/${gameId}`;
+            // Sử dụng thumbnailPath từ server response thay vì tự tạo URL
+            const imageUrl = `${this.serverUrl}${screenshot.thumbnailPath}`;
             
             console.log("Loading image from URL:", imageUrl);
+            console.log("Screenshot data:", screenshot);
             
             cc.loader.load({
                 url: imageUrl,
@@ -159,7 +161,7 @@ cc.Class({
                 // Scale image to fit
                 this.scaleImageToFit(sprite.node);
                 
-                console.log(`Image loaded successfully for ${gameId}`);
+                console.log(`Image loaded successfully for ${screenshot.gameId}`);
                 resolve();
             });
         });
