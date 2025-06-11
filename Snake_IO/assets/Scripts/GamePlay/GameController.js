@@ -1,895 +1,267 @@
 const { ccclass, property } = cc._decorator;
 
+import SocketManager from "./SocketManagerController";
+import GameStateManager from "./GameStateManager";
+import InputManager from "./InputManager";
+import UIManager from "./UIManager";
+import LeaderboardManager from "./LeaderboardManager";
+import ScreenshotManager from "./ScreenshotManager";
+import { GameConfig } from "./GameConfig";
+
 @ccclass
 export default class GameController extends cc.Component {
-  @property(cc.Prefab)
-  snakePrefab = null;
+  // UI Properties
+  @property(cc.Prefab) snakePrefab = null;
+  @property(cc.Prefab) foodPrefab = null;
+  @property(cc.Node) gameArea = null;
+  @property(cc.Label) scoreLabel = null;
+  @property(cc.Label) statusLabel = null;
+  @property(cc.Node) scoreTablePopup = null;
+  @property(cc.Node) scoreTableContent = null;
+  @property(cc.Prefab) scoreLabelPrefab = null;
+  @property(cc.Button) backToLobbyButton = null;
+  @property(cc.Node) chatControllerNode = null;
+  @property(cc.Camera) screenshotCamera = null;
 
-  @property(cc.Prefab)
-  foodPrefab = null;
+  // Managers
+  socketManager = null;
+  gameStateManager = null;
+  inputManager = null;
+  uiManager = null;
+  leaderboardManager = null;
+  screenshotManager = null;
 
-  @property(cc.Node)
-  gameArea = null;
-
-  @property(cc.Label)
-  scoreLabel = null;
-
-  @property(cc.Label)
-  statusLabel = null;
-
-  // Simplified leaderboard properties
-  @property(cc.Node)
-  scoreTablePopup = null;
-
-  @property(cc.Node)
-  scoreTableContent = null;
-
-  @property(cc.Prefab)
-  scoreLabelPrefab = null;
-
-  @property(cc.Button)
-  backToLobbyButton = null;
-
-  @property(cc.Node)
-  chatControllerNode = null;
-
-  @property(cc.Camera)
-  screenshotCamera = null;
-
-  socket = null;
-  playerId = null;
-  currentRoom = null;
-  gameState = null;
-
-  playerSnakes = new Map();
-  foodNodes = new Map();
-
-  canvasWidth = 960;
-  canvasHeight = 640;
-  gridSize = 20;
-
-  isGameActive = false;
+  // Game State
   isInitialized = false;
-  quitConfirmTimer = null;
 
   start() {
-    this.resetGameState();
+    this.initializeManagers();
     this.initialize();
-    this.setupScoreTablePopup();
   }
 
-  // Setup score table pop-up
-  setupScoreTablePopup() {
-    if (this.scoreTablePopup) {
-      this.scoreTablePopup.active = false;
-    }
+  initializeManagers() {
+    // Initialize all managers
+    this.socketManager = new SocketManager();
+    this.gameStateManager = new GameStateManager();
+    this.inputManager = new InputManager();
+    this.uiManager = new UIManager();
+    this.leaderboardManager = new LeaderboardManager();
+    this.screenshotManager = new ScreenshotManager();
 
-    if (this.backToLobbyButton) {
-      this.backToLobbyButton.node.on("click", this.onBackToLobbyClick, this);
-    }
+    // Pass references to managers
+    this.setupManagerReferences();
   }
 
-  // Handle back to lobby button click
-  onBackToLobbyClick() {
-    this.hideScoreTablePopup();
-    this.showGameEndOptions();
+  setupManagerReferences() {
+    // UI Manager setup
+    this.uiManager.initialize({
+      scoreLabel: this.scoreLabel,
+      statusLabel: this.statusLabel,
+      scoreTablePopup: this.scoreTablePopup,
+      backToLobbyButton: this.backToLobbyButton,
+      chatControllerNode: this.chatControllerNode,
+      onBackToLobby: this.handleBackToLobby.bind(this),
+    });
+
+    // Game State Manager setup
+    this.gameStateManager.initialize({
+      gameArea: this.gameArea,
+      snakePrefab: this.snakePrefab,
+      foodPrefab: this.foodPrefab,
+      canvasWidth: GameConfig.CANVAS_WIDTH,
+      canvasHeight: GameConfig.CANVAS_HEIGHT,
+      gridSize: GameConfig.GRID_SIZE,
+    });
+
+    // Socket Manager setup
+    this.socketManager.initialize({
+      onGameStarted: this.handleGameStarted.bind(this),
+      onGameState: this.handleGameState.bind(this),
+      onGameEnded: this.handleGameEnded.bind(this),
+      onPlayerLeft: this.handlePlayerLeft.bind(this),
+      onStartGameFailed: this.handleStartGameFailed.bind(this),
+      onQuitRoomSuccess: this.handleQuitRoomSuccess.bind(this),
+      onQuitRoomFailed: this.handleQuitRoomFailed.bind(this),
+    });
+
+    // Input Manager setup
+    this.inputManager.initialize({
+      onMove: this.handlePlayerMove.bind(this),
+      onQuit: this.handleQuitRoom.bind(this),
+      canProcessInput: () => this.canProcessInput(),
+    });
+
+    // Leaderboard Manager setup
+    this.leaderboardManager.initialize({
+      scoreTablePopup: this.scoreTablePopup,
+      scoreTableContent: this.scoreTableContent,
+      scoreLabelPrefab: this.scoreLabelPrefab,
+    });
+
+    // Screenshot Manager setup
+    this.screenshotManager.initialize({
+      screenshotCamera: this.screenshotCamera,
+      currentRoom: () => this.socketManager.getCurrentRoom(),
+    });
   }
 
   async initialize() {
     try {
-      this.setupSocket();
-      this.setupGameArea();
-      this.setupKeyboardControls();
-      this.setupSocketEvents();
+      await this.socketManager.connect();
+      this.gameStateManager.setupGameArea();
+      this.inputManager.setupControls();
 
       this.isInitialized = true;
-      this.updateStatus("Ready - Waiting for game to start...");
+      this.uiManager.updateStatus("Ready - Waiting for game to start...");
 
       setTimeout(() => this.autoStartGame(), 1000);
     } catch (error) {
-      this.updateStatus("Initialization error - Returning to lobby...");
+      this.uiManager.updateStatus(
+        "Initialization error - Returning to lobby..."
+      );
       setTimeout(() => cc.director.loadScene("JoinRoom"), 2000);
     }
   }
 
-  setupSocket() {
-    this.socket = window.gameSocket;
-
-    if (!this.socket?.connected) {
-      this.updateStatus("Connection error - Returning to lobby...");
-      setTimeout(() => cc.director.loadScene("JoinRoom"), 2000);
-      throw new Error("No socket connection");
-    }
-
-    this.playerId = this.socket.id;
-    this.currentRoom = window.currentRoomId;
-
-    if (!this.playerId || !this.currentRoom) {
-      throw new Error("Missing player ID or room ID");
+  // Game Event Handlers
+  handleGameStarted(data) {
+    if (this.isInitialized) {
+      this.gameStateManager.startGame();
+      this.uiManager.updateStatus("Game started!");
     }
   }
 
-  setupGameArea() {
-    if (!this.gameArea) return;
-
-    this.gameArea.width = this.canvasWidth;
-    this.gameArea.height = this.canvasHeight;
-
-    const background = this.gameArea.getComponent(cc.Sprite);
-    if (background) {
-      background.node.color = cc.Color.BLACK;
+  handleGameState(state) {
+    if (this.isInitialized && this.gameStateManager.isGameActive() && state) {
+      this.gameStateManager.updateGameState(state);
+      this.updateGameDisplay(state);
     }
   }
 
-  setupSocketEvents() {
-    // Clear existing listeners
-    [
-      "game-started",
-      "game-state",
-      "game-ended",
-      "player-joined",
-      "player-left",
-      "start-game-failed",
-      "quit-room-success",
-      "quit-room-failed",
-    ].forEach((event) => this.socket.off(event));
+  handleGameEnded(data) {
+    this.gameStateManager.endGame();
+    this.uiManager.showGameEndMessage(data);
 
-    this.socket.on("game-started", (data) => {
-      if (this.isInitialized) {
-        this.isGameActive = true;
-        this.updateStatus("Game started!");
-        this.clearGameObjects();
-      }
-    });
+    // Send message to chat
+    this.uiManager.sendChatMessage(this.uiManager.getGameEndMessage(data));
 
-    this.socket.on("game-state", (state) => {
-      if (this.isInitialized && this.isGameActive && state) {
-        this.gameState = state;
-        this.updateGameDisplay(state);
-      }
-    });
+    // Show leaderboard
+    if (data.scores && data.scores.length > 0) {
+      this.gameStateManager.updatePlayersFromScores(data.scores);
+      setTimeout(() => this.showLeaderboard(), 1500);
+    } else if (this.gameStateManager.hasPlayers()) {
+      setTimeout(() => this.showLeaderboard(), 1500);
+    }
 
-    this.socket.on("game-ended", (data) => {
-      this.isGameActive = false;
-      this.handleGameEnd(data);
-    });
-
-    this.socket.on("player-left", (data) => {
-      this.removePlayerSnake(data.playerId);
-
-      // Update gameState when player quits
-      if (this.gameState && this.gameState.players) {
-        const playerIndex = this.gameState.players.findIndex(
-          (p) => p.id === data.playerId
-        );
-        if (playerIndex !== -1) {
-          this.gameState.players[playerIndex].score = 0;
-          this.gameState.players[playerIndex].alive = false;
-        }
-      }
-
-      if (data.reason === "quit" || data.reason === "disconnect") {
-        this.updateStatus(`${data.playerName} has left the room`);
-        setTimeout(() => {
-          if (this.isGameActive) {
-            this.updateStatus("Game in progress...");
-          }
-        }, 2000);
-      }
-    });
-
-    this.socket.on("start-game-failed", (data) => {
-      this.updateStatus(`Cannot start game: ${data.reason}`);
-    });
-
-    this.socket.on("quit-room-success", (data) => {
-      this.updateStatus("Successfully left the room!");
-      this.resetGameState();
-      window.currentRoomId = null;
-
-      setTimeout(() => {
-        cc.director.loadScene("JoinRoom");
-      }, 1000);
-    });
-
-    this.socket.on("quit-room-failed", (data) => {
-      this.updateStatus(`Cannot leave room: ${data.reason}`);
-    });
+    setTimeout(() => this.gameStateManager.clearGameObjects(), 1500);
   }
 
-  setupKeyboardControls() {
-    cc.systemEvent.on(
-      cc.SystemEvent.EventType.KEY_DOWN,
-      (event) => {
-        // Movement controls
-        if (this.canProcessInput()) {
-          const direction = this.getDirectionFromKey(event.keyCode);
-          if (direction) {
-            this.sendPlayerMove(direction);
-          }
-        }
+  handlePlayerLeft(data) {
+    this.gameStateManager.removePlayer(data.playerId);
+    this.uiManager.showPlayerLeftMessage(data);
+  }
 
-        // Quit room with ESC key
-        if (event.keyCode === cc.macro.KEY.escape) {
-          this.quitRoom();
-        }
-      },
-      this
+  handleStartGameFailed(data) {
+    this.uiManager.updateStatus(`Cannot start game: ${data.reason}`);
+  }
+
+  handleQuitRoomSuccess(data) {
+    this.uiManager.updateStatus("Successfully left the room!");
+    this.resetGame();
+    setTimeout(() => cc.director.loadScene("JoinRoom"), 1000);
+  }
+
+  handleQuitRoomFailed(data) {
+    this.uiManager.updateStatus(`Cannot leave room: ${data.reason}`);
+  }
+
+  handlePlayerMove(direction) {
+    if (this.canProcessInput()) {
+      this.socketManager.sendPlayerMove(direction);
+    }
+  }
+
+  handleQuitRoom() {
+    this.socketManager.quitRoom(
+      this.gameStateManager.isGameActive(),
+      (message) => this.uiManager.updateStatus(message),
+      () => this.uiManager.clearChatHistory()
     );
   }
 
+  handleBackToLobby() {
+    this.uiManager.hideScoreTablePopup();
+    this.showGameEndOptions();
+  }
+
+  // Game Logic
   canProcessInput() {
     return (
       this.isInitialized &&
-      this.isGameActive &&
-      this.currentRoom &&
-      this.gameState
+      this.gameStateManager.isGameActive() &&
+      this.socketManager.isConnected() &&
+      this.gameStateManager.hasGameState()
     );
   }
 
-  getDirectionFromKey(keyCode) {
-    const directions = {
-      [cc.macro.KEY.up]: { x: 0, y: -1 },
-      [cc.macro.KEY.w]: { x: 0, y: -1 },
-      [cc.macro.KEY.down]: { x: 0, y: 1 },
-      [cc.macro.KEY.s]: { x: 0, y: 1 },
-      [cc.macro.KEY.left]: { x: -1, y: 0 },
-      [cc.macro.KEY.a]: { x: -1, y: 0 },
-      [cc.macro.KEY.right]: { x: 1, y: 0 },
-      [cc.macro.KEY.d]: { x: 1, y: 0 },
-    };
-    return directions[keyCode];
-  }
-
-  quitRoom() {
-    if (!this.socket || !this.currentRoom || !this.playerId) {
-      this.updateStatus("Cannot leave room - missing information!");
-      return;
-    }
-
-    if (this.isGameActive) {
-      if (!this.quitConfirmTimer) {
-        this.updateStatus(
-          "Press ESC again to confirm quit (you will lose points)"
-        );
-
-        this.quitConfirmTimer = setTimeout(() => {
-          this.quitConfirmTimer = null;
-          if (this.statusLabel && this.statusLabel.string.includes("confirm")) {
-            this.updateStatus("Game in progress...");
-          }
-        }, 3000);
-        return;
-      } else {
-        clearTimeout(this.quitConfirmTimer);
-        this.quitConfirmTimer = null;
-      }
-    }
-
-    this.updateStatus("Leaving room...");
-
-    this.socket.emit("quit-room", {
-      roomId: this.currentRoom,
-      playerId: this.playerId,
-    });
-
-    // Clear chat history through ChatController
-    if (this.chatControllerNode) {
-      const chatController =
-        this.chatControllerNode.getComponent("ChatController");
-      if (chatController) {
-        chatController.clearChatHistory();
-      }
-    }
-  }
-
   autoStartGame() {
-    if (this.isInitialized && this.currentRoom && this.socket) {
-      this.socket.emit("start-game", {
-        roomId: this.currentRoom,
-        playerId: this.playerId,
-      });
+    if (this.isInitialized && this.socketManager.isConnected()) {
+      this.socketManager.startGame();
     }
   }
 
   updateGameDisplay(state) {
     if (state.players) {
-      this.updatePlayers(state.players);
+      this.gameStateManager.updatePlayers(state.players);
     }
 
     if (state.foods) {
-      this.updateFoods(state.foods);
+      this.gameStateManager.updateFoods(state.foods);
     }
 
-    const myPlayer = state.players?.find((p) => p.id === this.playerId);
+    const myPlayer = this.socketManager.getMyPlayer(state.players);
     if (myPlayer) {
-      this.updateScore(myPlayer.score);
+      this.uiManager.updateScore(myPlayer.score);
       if (!myPlayer.alive) {
-        this.updateStatus("You died!");
+        this.uiManager.updateStatus("You died!");
       }
     }
   }
 
-  updatePlayers(players) {
-    players.forEach((player) => {
-      if (player.alive) {
-        this.updatePlayerSnake(player);
-      } else {
-        this.removePlayerSnake(player.id);
+  async showLeaderboard() {
+    const playersData = this.gameStateManager.getPlayersData();
+    if (!playersData) return;
+
+    this.leaderboardManager.show(playersData);
+
+    // Capture screenshot after animation
+    setTimeout(async () => {
+      const screenshot = await this.screenshotManager.captureLeaderboard(
+        this.scoreTablePopup,
+        playersData
+      );
+
+      if (screenshot) {
+        await this.screenshotManager.uploadScreenshot(screenshot, playersData);
       }
-    });
-  }
-
-  updatePlayerSnake(player) {
-    let snakeNode = this.playerSnakes.get(player.id);
-
-    if (!snakeNode) {
-      snakeNode = this.createSnakeNode(player);
-      if (snakeNode) {
-        this.playerSnakes.set(player.id, snakeNode);
-      }
-    } else {
-      const snakeScript = snakeNode.getComponent("Snake");
-      snakeScript?.updateSnake(player);
-    }
-  }
-
-  createSnakeNode(player) {
-    if (!this.snakePrefab) return null;
-
-    const snakeNode = cc.instantiate(this.snakePrefab);
-    snakeNode.parent = this.gameArea;
-
-    const snakeScript = snakeNode.getComponent("Snake");
-    snakeScript?.initializeSnake(player);
-
-    return snakeNode;
-  }
-
-  removePlayerSnake(playerId) {
-    const snakeNode = this.playerSnakes.get(playerId);
-    if (snakeNode?.isValid) {
-      snakeNode.destroy();
-      this.playerSnakes.delete(playerId);
-    }
-  }
-
-  updateFoods(foods) {
-    // Remove dead foods
-    this.foodNodes.forEach((foodNode, foodId) => {
-      const food = foods.find((f) => f.id === foodId);
-      if (!food?.alive) {
-        const foodScript = foodNode.getComponent("Food");
-        foodScript?.onEaten();
-
-        setTimeout(() => {
-          if (foodNode?.isValid) {
-            foodNode.destroy();
-          }
-        }, 500);
-
-        this.foodNodes.delete(foodId);
-      }
-    });
-
-    // Add/update alive foods
-    foods.forEach((food) => {
-      if (food.alive) {
-        this.updateFood(food);
-      }
-    });
-  }
-
-  updateFood(food) {
-    let foodNode = this.foodNodes.get(food.id);
-
-    if (!foodNode) {
-      foodNode = this.createFoodNode(food);
-      if (foodNode) {
-        this.foodNodes.set(food.id, foodNode);
-      }
-    } else {
-      const foodScript = foodNode.getComponent("Food");
-      foodScript?.updateFood(food);
-    }
-  }
-
-  createFoodNode(food) {
-    if (!this.foodPrefab) return null;
-
-    const foodNode = cc.instantiate(this.foodPrefab);
-    foodNode.parent = this.gameArea;
-    foodNode.name = `Food_${food.id}`;
-
-    const foodScript = foodNode.getComponent("Food");
-    if (foodScript) {
-      foodScript.initFood(food.id, food);
-    } else {
-      // Fallback
-      foodNode.color = cc.Color.RED;
-      foodNode.width = this.gridSize;
-      foodNode.height = this.gridSize;
-
-      const worldPos = this.gridToWorldPosition(food.position);
-      foodNode.setPosition(worldPos.x, worldPos.y);
-    }
-
-    return foodNode;
-  }
-
-  gridToWorldPosition(gridPos) {
-    const worldX = gridPos.x - this.canvasWidth / 2;
-    const worldY = this.canvasHeight / 2 - gridPos.y;
-    return { x: worldX, y: worldY };
-  }
-
-  sendPlayerMove(direction) {
-    if (this.canProcessInput()) {
-      this.socket.emit("player-move", {
-        roomId: this.currentRoom,
-        playerId: this.playerId,
-        direction: direction,
-      });
-    }
-  }
-
-  updateScore(score) {
-    if (this.scoreLabel) {
-      this.scoreLabel.string = `Score: ${score}`;
-    }
-  }
-
-  updateStatus(status) {
-    if (this.statusLabel) {
-      this.statusLabel.string = status;
-    }
-  }
-
-  // Simplified game end handler
-  handleGameEnd(data) {
-    this.isGameActive = false;
-
-    let statusMessage = "";
-    if (data.isDraw) {
-      statusMessage = "Game ended in a draw!";
-    } else if (data.winner) {
-      statusMessage = `Game ended! Winner: ${data.winner}`;
-    } else {
-      statusMessage = "Game ended!";
-    }
-
-    this.updateStatus(statusMessage);
-
-    // Send game end message to chat through ChatController
-    if (this.chatControllerNode) {
-      const chatController =
-        this.chatControllerNode.getComponent("ChatController");
-      if (chatController) {
-        chatController.displaySystemMessage(statusMessage, cc.Color.YELLOW);
-      }
-    }
-
-    // Use data from server instead of local gameState
-    if (data.scores && data.scores.length > 0) {
-      // Update gameState with accurate data from server
-      if (this.gameState) {
-        this.gameState.players = data.scores.map((scoreData) => ({
-          id: scoreData.id,
-          name: scoreData.name,
-          score: scoreData.score,
-          alive: scoreData.status === "alive",
-        }));
-      }
-
-      setTimeout(() => this.showLeaderboard(), 1500);
-    } else if (this.gameState && this.gameState.players) {
-      // Fallback using current gameState
-      setTimeout(() => this.showLeaderboard(), 1500);
-    }
-
-    setTimeout(() => this.clearGameObjects(), 1500);
-  }
-
-  // Simplified leaderboard display
-  showLeaderboard() {
-    if (
-      !this.scoreTablePopup ||
-      !this.scoreTableContent ||
-      !this.scoreLabelPrefab
-    ) {
-      return;
-    }
-
-    let playersData = [];
-
-    // Prioritize using data from gameState
-    if (this.gameState?.players) {
-      playersData = this.gameState.players;
-    } else {
-      return;
-    }
-
-    // Show the popup
-    this.scoreTablePopup.active = true;
-
-    // Clear existing content
-    this.scoreTableContent.removeAllChildren();
-
-    // Sort players by score (descending) and get top 3
-    const top3Players = [...playersData]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3);
-
-    // Create score labels for top 3 players
-    top3Players.forEach((player, index) => {
-      this.createPlayerScoreLabel(player, index);
-    });
-
-    // Add entrance animation
-    this.animateScoreTableEntrance();
-
-    // Chụp màn hình sau khi animation hoàn thành
-    setTimeout(() => {
-      this.captureLeaderboardScreenshot(top3Players);
     }, 1000);
-  }
-  captureLeaderboardScreenshot(playersData) {
-    try {
-      if (!this.screenshotCamera) {
-        console.warn("Screenshot camera not assigned");
-        return;
-      }
-
-      const width = 300;
-      const height = 200;
-
-      const renderTexture = new cc.RenderTexture();
-      const gl = cc.game._renderContext;
-
-      renderTexture.initWithSize(width, height, gl.STENCIL_INDEX8);
-
-      this.screenshotCamera.targetTexture = renderTexture;
-      this.screenshotCamera.render(this.scoreTablePopup);
-
-      const data = renderTexture.readPixels();
-      if (data) {
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-
-        const imageData = ctx.createImageData(width, height);
-
-        for (let i = 0; i < data.length; i += 4) {
-          imageData.data[i] = data[i];
-          imageData.data[i + 1] = data[i + 1];
-          imageData.data[i + 2] = data[i + 2];
-          imageData.data[i + 3] = data[i + 3];
-        }
-
-        ctx.putImageData(imageData, 0, 0);
-
-        // ===== CÁCH 3: Tạo canvas thứ 2 để flip =====
-        const flippedCanvas = document.createElement("canvas");
-        flippedCanvas.width = width;
-        flippedCanvas.height = height;
-        const flippedCtx = flippedCanvas.getContext("2d");
-
-        // Flip và vẽ
-        flippedCtx.save();
-        flippedCtx.scale(1, -1);
-        flippedCtx.translate(0, -height);
-        flippedCtx.drawImage(canvas, 0, 0);
-        flippedCtx.restore();
-
-        const base64Image = flippedCanvas.toDataURL("image/jpeg", 0.7);
-        this.uploadScreenshot(base64Image, playersData);
-      }
-
-      this.screenshotCamera.targetTexture = null;
-      renderTexture.destroy();
-    } catch (error) {
-      console.error("Screenshot capture failed:", error);
-    }
-  }
-
-  // Method để upload screenshot lên server
-  async uploadScreenshot(base64Image, playersData) {
-    try {
-      // Nén ảnh trước khi gửi
-      const compressedImage = await this.compressBase64Image(
-        base64Image,
-        300,
-        200,
-        0.6
-      );
-
-      const gameId = `game_${Date.now()}_${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
-
-      const payload = {
-        gameId: gameId,
-        screenshot: compressedImage,
-        players: playersData.map((player) => ({
-          id: player.id,
-          name: player.name || `Player_${player.id?.substring(0, 4)}`,
-          score: player.score,
-        })),
-        timestamp: new Date().toISOString(),
-        roomId: this.currentRoom,
-      };
-
-      // Kiểm tra kích thước payload
-      const payloadSize = JSON.stringify(payload).length;
-      console.log(`Payload size: ${(payloadSize / 1024 / 1024).toFixed(2)} MB`);
-
-      if (payloadSize > 8 * 1024 * 1024) {
-        // 8MB
-        console.warn("Payload too large, compressing further...");
-        const furtherCompressed = await this.compressBase64Image(
-          base64Image,
-          200,
-          150,
-          0.4
-        );
-        payload.screenshot = furtherCompressed;
-      }
-
-      const response = await fetch(
-        "http://localhost:3000/api/screenshot/upload",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const result = await response.json();
-
-      if (result.success) {
-        console.log("Screenshot uploaded successfully:", result.filename);
-      } else {
-        console.error("Upload failed:", result.message);
-      }
-    } catch (error) {
-      console.error("Upload error:", error);
-    }
-  }
-
-  compressBase64Image(
-    base64String,
-    maxWidth = 300,
-    maxHeight = 200,
-    quality = 0.7
-  ) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-
-        // Tính toán kích thước mới giữ tỉ lệ
-        let { width, height } = img;
-        if (width > maxWidth || height > maxHeight) {
-          const ratio = Math.min(maxWidth / width, maxHeight / height);
-          width *= ratio;
-          height *= ratio;
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        // Vẽ ảnh với kích thước mới
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Xuất với chất lượng thấp hơn
-        const compressedBase64 = canvas.toDataURL("image/jpeg", quality);
-        resolve(compressedBase64);
-      };
-      img.src = base64String;
-    });
-  }
-
-  // Create individual player score label
-  createPlayerScoreLabel(player, index) {
-    const rank = index + 1;
-    const playerName =
-      player.name || `Player_${player.id?.substring(0, 4) || rank}`;
-
-    // Create score label from prefab
-    const scoreLabelNode = cc.instantiate(this.scoreLabelPrefab);
-    scoreLabelNode.parent = this.scoreTableContent;
-
-    // Position the labels vertically
-    scoreLabelNode.y = 100 - index * 80;
-
-    // Find the label component
-    let labelComponent = this.findLabelComponent(scoreLabelNode);
-
-    if (labelComponent) {
-      // Set the text content with rank indicator
-      const displayText = `${playerName}\nScore: ${player.score}`;
-      labelComponent.string = displayText;
-
-      // Set rank colors
-      labelComponent.node.color = this.getRankColor(rank);
-    }
-
-    // Add entrance animation
-    this.animateScoreLabel(scoreLabelNode, index);
-  }
-
-  // Find label component in node or its children
-  findLabelComponent(node) {
-    // Check root node first
-    let labelComponent = node.getComponent(cc.Label);
-
-    if (!labelComponent) {
-      // Search in children recursively
-      const findInChildren = (parent) => {
-        for (let child of parent.children) {
-          const label = child.getComponent(cc.Label);
-          if (label) return label;
-
-          const childResult = findInChildren(child);
-          if (childResult) return childResult;
-        }
-        return null;
-      };
-
-      labelComponent = findInChildren(node);
-    }
-
-    return labelComponent;
-  }
-
-  // Get color for different ranks
-  getRankColor(rank) {
-    switch (rank) {
-      case 1:
-        return cc.Color.YELLOW; // Gold
-      case 2:
-        return new cc.Color(192, 192, 192); // Silver
-      case 3:
-        return new cc.Color(205, 127, 50); // Bronze
-      default:
-        return cc.Color.WHITE;
-    }
-  }
-
-  // Animate individual score labels
-  animateScoreLabel(labelNode, index) {
-    // Start from the right and fade in
-    labelNode.x = 300;
-    labelNode.opacity = 0;
-
-    // Stagger animations
-    const delay = index * 0.3;
-
-    const moveAction = cc.moveTo(0.5, cc.v2(0, labelNode.y));
-    const fadeAction = cc.fadeTo(0.5, 255);
-    const delayAction = cc.delayTime(delay);
-
-    const sequence = cc.sequence(delayAction, cc.spawn(moveAction, fadeAction));
-
-    labelNode.runAction(sequence);
-  }
-
-  // Animate score table entrance
-  animateScoreTableEntrance() {
-    if (!this.scoreTablePopup) return;
-
-    // Start from scale 0
-    this.scoreTablePopup.scale = 0;
-    this.scoreTablePopup.opacity = 0;
-
-    // Animate to full size with bounce effect
-    const scaleAction = cc.sequence(cc.scaleTo(0.3, 1.2), cc.scaleTo(0.2, 1.0));
-    const fadeAction = cc.fadeTo(0.3, 255);
-
-    this.scoreTablePopup.runAction(cc.spawn(scaleAction, fadeAction));
-  }
-
-  // Hide score table pop-up
-  hideScoreTablePopup() {
-    if (!this.scoreTablePopup) return;
-
-    const scaleAction = cc.scaleTo(0.2, 0);
-    const fadeAction = cc.fadeTo(0.2, 0);
-    const hideAction = cc.callFunc(() => {
-      this.scoreTablePopup.active = false;
-    });
-
-    const sequence = cc.sequence(cc.spawn(scaleAction, fadeAction), hideAction);
-    this.scoreTablePopup.runAction(sequence);
   }
 
   showGameEndOptions() {
-    this.resetGameState();
-    window.currentRoomId = null;
+    this.resetGame();
     cc.director.loadScene("JoinRoom");
   }
 
-  getPlayerColor(playerId, isHead = true) {
-    const colors = [
-      cc.Color.GREEN,
-      cc.Color.BLUE,
-      cc.Color.YELLOW,
-      cc.Color.MAGENTA,
-    ];
-    const hash = this.hashString(playerId);
-    const baseColor = colors[Math.abs(hash) % colors.length];
-
-    return isHead
-      ? baseColor
-      : new cc.Color(baseColor.r * 0.7, baseColor.g * 0.7, baseColor.b * 0.7);
-  }
-
-  hashString(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
-  }
-
-  clearGameObjects() {
-    this.playerSnakes.forEach((snake) => snake?.isValid && snake.destroy());
-    this.playerSnakes.clear();
-
-    this.foodNodes.forEach((food) => food?.isValid && food.destroy());
-    this.foodNodes.clear();
-  }
-
-  resetGameState() {
-    this.gameState = null;
-    this.isGameActive = false;
+  resetGame() {
+    this.gameStateManager.reset();
+    this.socketManager.reset();
+    this.uiManager.reset();
     this.isInitialized = false;
-    this.clearGameObjects();
-
-    if (this.scoreLabel) {
-      this.scoreLabel.string = "Score: 0";
-    }
-
-    if (this.quitConfirmTimer) {
-      clearTimeout(this.quitConfirmTimer);
-      this.quitConfirmTimer = null;
-    }
-
-    // Hide score table popup
-    if (this.scoreTablePopup) {
-      this.scoreTablePopup.active = false;
-    }
   }
 
   onDestroy() {
-    this.isGameActive = false;
-    this.isInitialized = false;
-    this.clearGameObjects();
-
-    if (this.quitConfirmTimer) {
-      clearTimeout(this.quitConfirmTimer);
-      this.quitConfirmTimer = null;
-    }
-
-    if (this.socket) {
-      [
-        "game-started",
-        "game-state",
-        "game-ended",
-        "player-joined",
-        "player-left",
-        "start-game-failed",
-        "quit-room-success",
-        "quit-room-failed",
-      ].forEach((event) => this.socket.off(event));
-    }
-
-    cc.systemEvent.off(cc.SystemEvent.EventType.KEY_DOWN);
+    this.resetGame();
+    this.inputManager?.cleanup();
+    this.socketManager?.cleanup();
   }
 }

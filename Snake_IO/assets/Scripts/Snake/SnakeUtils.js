@@ -2,6 +2,10 @@
 import { SNAKE_CONFIG, NEON_COLORS } from "./SnakeConstants";
 
 export class SnakeUtils {
+  // Lưu trữ màu đã được sử dụng
+  static usedColors = new Set();
+  static playerColorMap = new Map(); // Map playerId -> colorIndex
+
   // Chuyển đổi từ grid position sang world position
   static gridToWorldPosition(
     gridPos,
@@ -57,10 +61,64 @@ export class SnakeUtils {
     return 0;
   }
 
-  // Tạo màu cho player
+  // Tạo màu cho player - Tránh trùng màu
   static getPlayerColor(playerId) {
+    // Nếu player đã có màu, trả về màu đã lưu
+    if (SnakeUtils.playerColorMap.has(playerId)) {
+      const colorIndex = SnakeUtils.playerColorMap.get(playerId);
+      return NEON_COLORS[colorIndex];
+    }
+
+    // Tìm màu chưa được sử dụng
+    let colorIndex = SnakeUtils.findAvailableColorIndex(playerId);
+
+    // Nếu tất cả màu đã được sử dụng, reset và bắt đầu lại
+    if (colorIndex === -1) {
+      SnakeUtils.resetColorUsage();
+      colorIndex = SnakeUtils.findAvailableColorIndex(playerId);
+    }
+
+    // Lưu màu cho player
+    SnakeUtils.playerColorMap.set(playerId, colorIndex);
+    SnakeUtils.usedColors.add(colorIndex);
+
+    return NEON_COLORS[colorIndex];
+  }
+
+  // Tìm màu có sẵn
+  static findAvailableColorIndex(playerId) {
+    // Thử hash trước
     const hash = SnakeUtils.hashString(playerId);
-    return NEON_COLORS[Math.abs(hash) % NEON_COLORS.length];
+    let preferredIndex = Math.abs(hash) % NEON_COLORS.length;
+
+    if (!SnakeUtils.usedColors.has(preferredIndex)) {
+      return preferredIndex;
+    }
+
+    // Nếu màu hash bị trùng, tìm màu tiếp theo có sẵn
+    for (let i = 0; i < NEON_COLORS.length; i++) {
+      if (!SnakeUtils.usedColors.has(i)) {
+        return i;
+      }
+    }
+
+    return -1; // Không có màu nào có sẵn
+  }
+
+  // Reset việc sử dụng màu (khi có quá nhiều player)
+  static resetColorUsage() {
+    SnakeUtils.usedColors.clear();
+    // Giữ lại mapping cho các player hiện tại
+    // Chỉ clear usedColors để cho phép tái sử dụng màu
+  }
+
+  // Xóa màu của player khi họ rời khỏi game
+  static removePlayerColor(playerId) {
+    if (SnakeUtils.playerColorMap.has(playerId)) {
+      const colorIndex = SnakeUtils.playerColorMap.get(playerId);
+      SnakeUtils.usedColors.delete(colorIndex);
+      SnakeUtils.playerColorMap.delete(playerId);
+    }
   }
 
   // Hash string để tạo màu duy nhất
