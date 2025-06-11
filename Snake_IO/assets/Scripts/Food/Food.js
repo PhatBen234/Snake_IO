@@ -35,7 +35,7 @@ export default class Food extends cc.Component {
 
     this.updatePosition(foodData.position);
     this.setSize(this.gridSize);
-    this.setRandomColor();
+    // Đã tắt setRandomColor() - giữ màu mặc định
     this.startEffects();
   }
 
@@ -74,30 +74,6 @@ export default class Food extends cc.Component {
       this.fruitImage.height = size * 0.8;
     }
   }
-
-  setRandomColor() {
-    const colors = [
-      cc.Color.RED,
-      cc.Color.GREEN,
-      cc.Color.BLUE,
-      cc.Color.YELLOW,
-      cc.Color.MAGENTA,
-      cc.Color.CYAN,
-      cc.Color.ORANGE,
-      new cc.Color(255, 192, 203), // Pink
-      new cc.Color(128, 0, 128), // Purple
-      new cc.Color(255, 165, 0), // Orange
-    ];
-
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
-    if (this.fruitImage) {
-      this.fruitImage.color = randomColor;
-    } else {
-      this.node.color = randomColor;
-    }
-  }
-
   startPulseEffect() {
     if (!this.node?.isValid) return;
 
@@ -185,7 +161,6 @@ export default class Food extends cc.Component {
     this.stopEffects();
     this.resetNodeAppearance();
     this.node.active = true;
-    this.setRandomColor();
     this.startEffects();
   }
 
