@@ -254,10 +254,13 @@ export default class GameController extends cc.Component {
 
     const myPlayer = this.socketManager.getMyPlayer(state.players);
     if (myPlayer) {
+      if (myPlayer.alive) {
       this.uiManager.updateScore(myPlayer.score);
-      if (!myPlayer.alive) {
-        this.uiManager.updateStatus("You died!");
-      }
+    }
+  
+    if (!myPlayer.alive) {
+      this.uiManager.updateStatus("You died!");
+    }
     }
   }
 
