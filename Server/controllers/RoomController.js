@@ -14,7 +14,6 @@ class RoomController {
   }
 
   createRoom(socket, data) {
-    // Validate input
     const validation = ValidationMiddleware.validateRoomCreation(data);
     if (!validation.isValid) {
       GameEventEmitter.emitCreateFailed(socket, validation.errors.join(", "));
@@ -23,15 +22,12 @@ class RoomController {
 
     const { playerId, playerName, playerLimit = 4 } = data;
 
-    // Generate room ID
     const roomId = this.generateRoomId();
 
-    // Create controller
     const controller = new this.GameController(roomId, this.io);
     controller.setPlayerLimit(playerLimit);
     this.controllers.set(roomId, controller);
 
-    // Create and add host player
     const player = this.createPlayer(
       playerId,
       playerName,
@@ -45,11 +41,9 @@ class RoomController {
       return;
     }
 
-    // Setup socket
     socket.join(roomId);
     socket.data = { roomId, playerId, isHost: true };
 
-    // Emit success
     const roomData = getRoomData(controller);
     GameEventEmitter.emitRoomCreated(socket, {
       roomId,
@@ -57,12 +51,9 @@ class RoomController {
       isHost: true,
       roomData,
     });
-
-    console.log(`🏠 Room ${roomId} created by ${playerName} (${playerId})`);
   }
 
   joinRoom(socket, data) {
-    // Validate input
     const validation = ValidationMiddleware.validateRoomJoin(data);
     if (!validation.isValid) {
       GameEventEmitter.emitJoinFailed(socket, validation.errors.join(", "));
@@ -71,20 +62,17 @@ class RoomController {
 
     const { playerId, playerName, roomId } = data;
 
-    // Check if room exists
     const controller = this.controllers.get(roomId);
     if (!controller) {
       GameEventEmitter.emitJoinFailed(socket, "Room not found");
       return;
     }
 
-    // Check if room is full
     if (this.RoomService.isFull(controller.room)) {
       socket.emit("room-full");
       return;
     }
 
-    // Create and add player
     const player = this.createPlayer(
       playerId,
       playerName,
@@ -98,11 +86,9 @@ class RoomController {
       return;
     }
 
-    // Setup socket
     socket.join(roomId);
     socket.data = { roomId, playerId, isHost: false };
 
-    // Emit events
     const roomData = getRoomData(controller);
     GameEventEmitter.emitRoomJoined(socket, {
       roomId,
@@ -117,7 +103,6 @@ class RoomController {
       roomData,
     });
 
-    console.log(`📥 Player ${playerName} (${playerId}) joined room ${roomId}`);
   }
 
   leaveRoom(socket, data) {
@@ -139,16 +124,13 @@ class RoomController {
       wasHost,
     });
 
-    // Handle host transfer
     if (wasHost && controller.room.players.size > 0) {
       this.transferHost(controller, roomId);
     }
 
-    // Cleanup empty rooms
     cleanupEmptyRoom(this.controllers, roomId, controller, this.RoomService);
   }
 
-  // Private helper methods
   generateRoomId() {
     return `room_${Math.random().toString(36).substr(2, 8)}`;
   }

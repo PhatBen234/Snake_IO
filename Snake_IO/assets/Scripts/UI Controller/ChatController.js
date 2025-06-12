@@ -8,8 +8,7 @@ export default class ChatController extends cc.Component {
   socket = null;
   playerId = null;
   currentRoom = null;
-  playerName = null; // Add player name property
-
+  playerName = null; 
   start() {
     this.initialize();
   }
@@ -19,14 +18,12 @@ export default class ChatController extends cc.Component {
     this.playerId = this.socket?.id;
     this.currentRoom = window.currentRoomId;
     
-    // Get player name from stored data
     this.playerName = window.currentPlayerName || this.getPlayerNameFromRoomData();
 
     this.setupChatPanel();
     this.setupChatEvents();
   }
 
-  // Get player name from room data if available
   getPlayerNameFromRoomData() {
     const roomData = window.roomData;
     if (roomData && roomData.players) {
@@ -40,23 +37,18 @@ export default class ChatController extends cc.Component {
     if (this.chatPanelNode) {
       const chatPanel = this.chatPanelNode.getComponent('ChatPanel');
       if (chatPanel) {
-        // Set username for chat using actual player name
         chatPanel.setUsername(this.playerName);
 
-        // Show welcome message
         chatPanel.showWelcomeMessage();
 
-        // Request chat history
         this.requestChatHistory();
 
-        // Setup chat message sending
         this.setupChatMessageSending(chatPanel);
       }
     }
   }
 
   setupChatMessageSending(chatPanel) {
-    // Override or setup the send message function
     chatPanel.sendMessage = (message) => {
       if (!message || !message.trim()) return;
 
@@ -80,14 +72,12 @@ export default class ChatController extends cc.Component {
   setupChatEvents() {
     if (!this.socket) return;
 
-    // Clear existing chat listeners
     this.socket.off('chat-message');
     this.socket.off('chat-history');
     this.socket.off('chat-error');
     this.socket.off('player-joined-chat');
     this.socket.off('player-left-chat');
 
-    // Handle incoming chat messages
     this.socket.on('chat-message', (data) => {
       if (data.roomId === this.currentRoom && this.chatPanelNode) {
         const chatPanel = this.chatPanelNode.getComponent('ChatPanel');
@@ -97,23 +87,19 @@ export default class ChatController extends cc.Component {
       }
     });
 
-    // Handle chat history
     this.socket.on('chat-history', (data) => {
       if (data.roomId === this.currentRoom && this.chatPanelNode) {
         const chatPanel = this.chatPanelNode.getComponent('ChatPanel');
         if (chatPanel) {
-          // Display chat history
           data.messages.forEach(message => {
             chatPanel.displayChatMessage(message);
           });
 
-          // Scroll to bottom after loading history
           chatPanel.scrollToBottom();
         }
       }
     });
 
-    // Handle chat errors
     this.socket.on('chat-error', (data) => {
       if (this.chatPanelNode) {
         const chatPanel = this.chatPanelNode.getComponent('ChatPanel');
@@ -169,10 +155,9 @@ export default class ChatController extends cc.Component {
     }
   }
 
-  // Update player name when room data changes
   updatePlayerName(newName) {
     this.playerName = newName;
-    window.currentPlayerName = newName; // Update global reference
+    window.currentPlayerName = newName; 
     
     if (this.chatPanelNode) {
       const chatPanel = this.chatPanelNode.getComponent('ChatPanel');

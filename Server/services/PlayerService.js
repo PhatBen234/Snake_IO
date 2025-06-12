@@ -18,7 +18,6 @@ class PlayerService {
   }
 
   static validateDirection(player, newDirection) {
-    // Prevent reverse direction
     return !(
       player.direction.x + newDirection.x === 0 &&
       player.direction.y + newDirection.y === 0

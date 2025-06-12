@@ -10,7 +10,6 @@ class ScreenshotService {
     this.initResourcesFolder();
   }
 
-  // Lazy initialize database connection
   getDatabase() {
     if (!this.db) {
       this.db = getDB();
@@ -18,24 +17,20 @@ class ScreenshotService {
     return this.db;
   }
 
-  // Ensure resources folder exists
   async initResourcesFolder() {
     try {
       await fs.access(this.resourcesPath);
     } catch (error) {
-      // Folder doesn't exist, create it
       await fs.mkdir(this.resourcesPath, { recursive: true });
       console.log("📁 Resources folder created:", this.resourcesPath);
     }
   }
 
-  // Save screenshot to filesystem and database
   async saveScreenshot(data) {
     try {
       const { gameId, screenshot, players, timestamp, roomId } = data;
 
-      // Kiểm tra kích thước base64
-      const base64Size = screenshot.length * 0.75; // Ước tính kích thước thực
+      const base64Size = screenshot.length * 0.75; 
       console.log(`Image size: ${(base64Size / 1024 / 1024).toFixed(2)} MB`);
 
       if (base64Size > 5 * 1024 * 1024) {
@@ -60,7 +55,7 @@ class ScreenshotService {
         timestamp: new Date(timestamp),
         roomId: roomId || null,
         createdAt: new Date(),
-        fileSize: base64Size, // Lưu kích thước file
+        fileSize: base64Size, 
       });
 
       console.log(`✅ Screenshot saved: ${filename}`);
@@ -76,7 +71,6 @@ class ScreenshotService {
     }
   }
 
-  // Get screenshot data by game ID
   async getScreenshot(gameId) {
     try {
       const db = this.getDatabase();
@@ -88,7 +82,6 @@ class ScreenshotService {
 
       const data = doc.data();
 
-      // Try to read file and include base64 data
       try {
         const filepath = data.filepath;
         const fileData = await fs.readFile(filepath);
@@ -102,14 +95,13 @@ class ScreenshotService {
         };
       } catch (fileError) {
         console.warn(`File not found: ${data.filepath}`);
-        return data; // Return metadata without image data
+        return data; 
       }
     } catch (error) {
       throw error;
     }
   }
 
-  // Get recent screenshots
   async getRecentScreenshots(limit = 10) {
     try {
       const db = this.getDatabase();
@@ -128,7 +120,6 @@ class ScreenshotService {
           players: data.players,
           timestamp: data.timestamp,
           roomId: data.roomId,
-          // Don't include full screenshot data for list view
           thumbnailPath: `/api/screenshot/${data.gameId}`,
         });
       });
@@ -139,7 +130,6 @@ class ScreenshotService {
     }
   }
 
-  // Clean up old screenshots (optional utility method)
   async cleanupOldScreenshots(daysOld = 30) {
     try {
       const cutoffDate = new Date();
@@ -157,10 +147,8 @@ class ScreenshotService {
       snapshot.forEach((doc) => {
         const data = doc.data();
 
-        // Delete from database
         deletePromises.push(doc.ref.delete());
 
-        // Delete file
         fileDeletePromises.push(
           fs
             .unlink(data.filepath)

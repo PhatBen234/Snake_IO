@@ -1,4 +1,3 @@
-// services/LeaderboardService.js
 const { getDB } = require("../db/firebaseService");
 
 class LeaderboardService {
@@ -7,7 +6,6 @@ class LeaderboardService {
     this.collection = "leaderboard";
   }
 
-  // Lazy initialize database connection
   getDatabase() {
     if (!this.db) {
       this.db = getDB();
@@ -15,14 +13,12 @@ class LeaderboardService {
     return this.db;
   }
 
-  // Save player score (only if it's better than existing)
   async savePlayerScore(playerId, playerName, score) {
     try {
       const db = this.getDatabase();
       const docRef = db.collection(this.collection).doc(playerId);
       const doc = await docRef.get();
 
-      // If player doesn't exist OR new score is higher
       if (!doc.exists || doc.data().score < score) {
         await docRef.set({
           playerId: playerId,
@@ -33,13 +29,12 @@ class LeaderboardService {
         return true;
       }
 
-      return false; // Score not improved
+      return false; 
     } catch (error) {
       throw error;
     }
   }
 
-  // Get top 10 players
   async getTopPlayers(limit = 10) {
     try {
       const db = this.getDatabase();
@@ -67,7 +62,6 @@ class LeaderboardService {
     }
   }
 
-  // Save multiple players from game end
   async saveGameResults(players) {
     try {
       const promises = players.map((player) =>
