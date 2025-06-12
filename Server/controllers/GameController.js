@@ -10,7 +10,6 @@ class GameController {
     this.gameService = new GameService(this.room, io, this);
   }
 
-  // Player Management
   addPlayer(player) {
     if (this.room.players.size >= this.room.maxPlayers) {
       return false;
@@ -38,7 +37,6 @@ class GameController {
     }
   }
 
-  // Game State Management
   setRoomStatus(status) {
     this.room.status = status;
   }
@@ -54,7 +52,6 @@ class GameController {
     return false;
   }
 
-  // Food Management
   addFood(food) {
     this.room.foods.set(food.id, food);
   }
@@ -63,7 +60,6 @@ class GameController {
     return this.room.foods.delete(foodId);
   }
 
-  // Player Actions
   changePlayerDirection(playerId, direction) {
     const player = this.room.players.get(playerId);
     if (player && player.alive) {
@@ -72,7 +68,6 @@ class GameController {
     }
   }
 
-  // Utility Methods
   resetRoom() {
     this.room.status = GAME_CONSTANTS.ROOM_STATUS.WAITING;
     this.room.players.clear();

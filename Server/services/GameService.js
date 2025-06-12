@@ -20,7 +20,7 @@ class GameService {
 
     this.gameInterval = setInterval(() => {
       this.update();
-    }, 1000 / 10); // 10 FPS
+    }, 1000 / 10); 
   }
 
   stop() {
@@ -35,20 +35,16 @@ class GameService {
   update() {
     if (this.room.status !== "playing") return;
 
-    // Move all alive players
     this.room.players.forEach((player) => {
       if (player.alive) {
         PlayerService.movePlayer(player);
       }
     });
 
-    // Check collisions
     CollisionService.checkAllCollisions(this.room);
 
-    // Check food consumption
     this.checkFoodConsumption();
 
-    // Spawn new food if needed
     FoodService.spawnFood(this.room);
 
     const activePlayers = RoomService.getActivePlayers(this.room);
@@ -83,11 +79,9 @@ class GameService {
     let isDraw = false;
 
     if (allPlayers.length > 0) {
-      // Tìm điểm cao nhất (chỉ tính những người có điểm > 0)
       const validPlayers = allPlayers.filter((p) => p.score > 0);
 
       if (validPlayers.length === 0) {
-        // Tất cả đều 0 điểm hoặc AFK
         isDraw = true;
         winner = null;
       } else {
@@ -103,10 +97,8 @@ class GameService {
       }
     }
 
-    // Save to leaderboard (async, không block game end)
     LeaderboardService.saveGameResults(allPlayers).catch(console.error);
 
-    // Emit game ended event
     this.io.to(this.room.id).emit("game-ended", {
       winner: winner,
       isDraw: isDraw,
@@ -131,29 +123,23 @@ class GameService {
   handlePlayerQuit(playerId) {
     const player = this.room.players.get(playerId);
     if (player) {
-      // Set score to 0 and mark as dead for AFK/quit players
       player.score = 0;
       player.alive = false;
 
-      console.log(`Player ${player.name} quit - Score set to 0`); // Debug log
+      console.log(`Player ${player.name} quit - Score set to 0`); 
 
-      // Check if game should end after this quit
       const activePlayers = RoomService.getActivePlayers(this.room);
       if (activePlayers.length <= 1 && this.room.players.size > 1) {
-        // Delay để đảm bảo score đã được cập nhật
         setTimeout(() => this.endGame(), 100);
       }
     }
   }
 
-  // THÊM METHOD MỚI: Handle player quit và end game ngay lập tức
   handlePlayerQuitAndCheckEnd(playerId) {
     this.handlePlayerQuit(playerId);
 
-    // Kiểm tra ngay sau khi quit
     const activePlayers = RoomService.getActivePlayers(this.room);
     if (activePlayers.length <= 1 && this.room.players.size > 1) {
-      // End game ngay lập tức với điểm số đã được cập nhật
       this.endGame();
     }
   }

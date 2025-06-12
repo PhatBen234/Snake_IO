@@ -4,7 +4,6 @@ const path = require("path");
 const fs = require("fs").promises;
 const ScreenshotService = require("../services/ScreenshotService");
 
-// POST /api/screenshot/upload - Upload game screenshot
 router.post("/upload", async (req, res) => {
   try {
     const { gameId, screenshot, players, timestamp, roomId } = req.body;
@@ -41,7 +40,6 @@ router.post("/upload", async (req, res) => {
   }
 });
 
-// GET /api/screenshot/:gameId - Get screenshot as image file
 router.get("/:gameId", async (req, res) => {
   try {
     const { gameId } = req.params;
@@ -49,7 +47,6 @@ router.get("/:gameId", async (req, res) => {
     const filename = `screenshot_${gameId}.png`;
     const filepath = path.join(resourcesPath, filename);
 
-    // Check if file exists
     try {
       await fs.access(filepath);
     } catch (error) {
@@ -59,11 +56,9 @@ router.get("/:gameId", async (req, res) => {
       });
     }
 
-    // Set proper headers for image
     res.setHeader("Content-Type", "image/png");
-    res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 1 day
+    res.setHeader("Cache-Control", "public, max-age=86400");
 
-    // Send file directly
     res.sendFile(filepath);
   } catch (error) {
     console.error("Get screenshot error:", error);
@@ -75,35 +70,6 @@ router.get("/:gameId", async (req, res) => {
   }
 });
 
-// GET /api/screenshot/:gameId/data - Get screenshot metadata with base64 data
-// router.get("/:gameId/data", async (req, res) => {
-//   try {
-//     const { gameId } = req.params;
-
-//     const screenshot = await ScreenshotService.getScreenshot(gameId);
-
-//     if (!screenshot) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Screenshot not found",
-//       });
-//     }
-
-//     res.json({
-//       success: true,
-//       data: screenshot,
-//     });
-//   } catch (error) {
-//     console.error("Get screenshot data error:", error);
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to retrieve screenshot data",
-//       error: error.message,
-//     });
-//   }
-// });
-
-// GET /api/screenshot/list/recent - Get recent screenshots
 router.get("/list/recent", async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;

@@ -1,4 +1,3 @@
-// handlers/connectionHandlers.js
 const { getRoomData, cleanupEmptyRoom } = require("../utils/roomUtils");
 
 function setupConnectionHandlers(socket, controllers, RoomService) {
@@ -13,13 +12,11 @@ function setupConnectionHandlers(socket, controllers, RoomService) {
       controller.removePlayer(playerId);
       const roomData = getRoomData(controller);
 
-      // Notify other players
       socket.to(roomId).emit("player-left", { 
         playerId,
         roomData: roomData
       });
 
-      // Clean up empty rooms
       cleanupEmptyRoom(controllers, roomId, controller, RoomService);
     }
   });

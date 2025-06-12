@@ -3,7 +3,6 @@ const express = require("express");
 const router = express.Router();
 const LeaderboardService = require("../services/LeaderboardService");
 
-// GET /api/leaderboard - Get top 10 players
 router.get("/", async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;

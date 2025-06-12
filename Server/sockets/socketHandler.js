@@ -18,7 +18,6 @@ module.exports = function (io) {
   io.on("connection", (socket) => {
     console.log("🔌 Client connected:", socket.id);
 
-    // Room related handlers
     roomHandlers.setupRoomHandlers(socket, controllers, {
       Player,
       GameController,
@@ -27,21 +26,17 @@ module.exports = function (io) {
       io,
     });
 
-    // Game related handlers
     gameHandlers.setupGameHandlers(socket, controllers, io);
 
-    // Connection related handlers
     connectionHandlers.setupConnectionHandlers(
       socket,
       controllers,
       RoomService
     );
 
-    // Chat related handlers
     chatHandlers.setupChatHandlers(socket, io);
   });
 
-  // Cleanup rate limits every 5 minutes
   setInterval(() => {
     ChatService.cleanupRateLimits();
   }, 5 * 60 * 1000);

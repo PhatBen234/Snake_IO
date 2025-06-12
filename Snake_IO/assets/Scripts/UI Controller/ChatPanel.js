@@ -9,29 +9,24 @@ cc.Class({
     },
 
     onLoad() {
-        // Initial state
         this.editBox.node.active = false;
         this.scrollView.node.active = false;
         
-        // Timer and interaction management
         this.hideTimer = null;
         this.HIDE_DELAY = 5;
         this._justBlurred = false;
         this._lastBlurTime = 0;
         this._blurredByEnter = false;
         
-        // Chat system properties
         this.socket = null;
         this.currentRoom = null;
         this.username = null;
         this.playerId = null;
         this.isInitialized = false;
         
-        // Message queue for offline messages
         this.messageQueue = [];
         this.maxMessages = 50;
         
-        // Initialize
         this.initializeSocket();
         this.setupEventListeners();
     },
@@ -41,7 +36,6 @@ cc.Class({
     },
 
     initializeSocket() {
-        // Get socket from global references
         this.socket = window.gameSocket;
         this.currentRoom = window.currentRoomId;
         this.playerId = window.currentPlayerId;
@@ -58,33 +52,28 @@ cc.Class({
         this.setupSocketEvents();
         this.isInitialized = true;
         
-        // Process queued messages
         this.processMessageQueue();
     },
 
     setupSocketEvents() {
         if (!this.socket) return;
 
-        // Prevent duplicate event listeners
         this.socket.off('chat-message');
         this.socket.off('chat-error');
         this.socket.off('player-joined');
         this.socket.off('player-left');
         this.socket.off('chat-history');
 
-        // Chat message handling
         this.socket.on('chat-message', (data) => {
             if (data.roomId === this.currentRoom) {
                 this.displayChatMessage(data);
             }
         });
 
-        // Error handling
         this.socket.on('chat-error', (data) => {
             this.displaySystemMessage(`Chat Error: ${data.message}`, cc.Color.RED);
         });
 
-        // Player notifications
         this.socket.on('player-joined', (data) => {
             if (data.playerId !== this.playerId && data.roomId === this.currentRoom) {
                 this.displaySystemMessage(`${data.playerName} joined`, cc.Color.GREEN);
@@ -97,14 +86,12 @@ cc.Class({
             }
         });
 
-        // Chat history
         this.socket.on('chat-history', (data) => {
             if (data.roomId === this.currentRoom) {
                 this.loadChatHistory(data.messages);
             }
         });
 
-        // Connection status
         this.socket.on('connect', () => {
             this.displaySystemMessage('Connected to chat server', cc.Color.GREEN);
         });
@@ -115,14 +102,11 @@ cc.Class({
     },
 
     setupEventListeners() {
-        // Input events
         this.editBox.node.on('editing-return', this.onSendMessage, this);
         this.editBox.node.on('editing-did-ended', this.onEditBoxBlur, this);
         
-        // Keyboard events
         cc.systemEvent.on(cc.SystemEvent.EventType.KEY_DOWN, this.onKeyDown, this);
         
-        // Interaction events
         if (this.node.parent) {
             this.node.parent.on(cc.Node.EventType.TOUCH_START, this.onUserInteraction, this);
         }
@@ -140,12 +124,10 @@ cc.Class({
         const currentTime = Date.now();
 
         if (!this.editBox.node.active) {
-            // Show chat and focus
             this.showChatUI();
             this.editBox.focus();
             this.resetBlurState();
         } else if (!this.editBox.isFocused()) {
-            // Focus if not already focused
             if (this._blurredByEnter || currentTime - this._lastBlurTime > 200) {
                 this.scheduleOnce(() => {
                     this.editBox.focus();
@@ -153,7 +135,6 @@ cc.Class({
                 this.resetBlurState();
             }
         } else {
-            // Handle empty message blur
             const msg = this.editBox.string.trim();
             if (msg.length === 0) {
                 this._blurredByEnter = true;
@@ -174,7 +155,6 @@ cc.Class({
         this.scrollView.node.active = true;
         this.clearHideTimer();
         
-        // Scroll to bottom
         this.scheduleOnce(() => {
             this.scrollToBottom();
         }, 0.1);
@@ -185,7 +165,6 @@ cc.Class({
         this.scrollView.node.active = false;
         this.clearHideTimer();
         
-        // Blur edit box if focused
         if (this.editBox.isFocused()) {
             this.editBox.blur();
         }
@@ -215,15 +194,12 @@ cc.Class({
             return;
         }
 
-        // Validate message
         if (!this.validateMessage(msg)) {
             return;
         }
 
-        // Send message
         this.sendChatMessage(msg);
 
-        // Clear and maintain focus
         this.editBox.string = "";
         this.scheduleOnce(() => {
             this.editBox.focus();
@@ -231,9 +207,8 @@ cc.Class({
     },
 
     validateMessage(message) {
-        // Check command first
         if (this.handleCommand(message)) {
-            return false; // Command handled, don't send as regular message
+            return false; 
         }
         
         if (message.length > 200) {
@@ -246,7 +221,6 @@ cc.Class({
             return false;
         }
 
-        // Filter inappropriate content (basic)
         if (this.containsInappropriateContent(message)) {
             this.displaySystemMessage('Message contains inappropriate content', cc.Color.RED);
             return false;
@@ -256,8 +230,7 @@ cc.Class({
     },
 
     containsInappropriateContent(message) {
-        // Basic profanity filter - you can expand this
-        const bannedWords = ['spam', 'hack', 'cheat']; // Add more as needed
+        const bannedWords = ['spam', 'hack', 'cheat'];
         const lowerMessage = message.toLowerCase();
         
         return bannedWords.some(word => lowerMessage.includes(word));
@@ -279,15 +252,12 @@ cc.Class({
             return;
         }
 
-        // Send with acknowledgment
         this.socket.emit('chat-message', chatData, (response) => {
             if (response && response.success) {
-                // Message sent successfully
                 console.log('Message sent successfully');
             } else {
-                // Handle send failure
                 this.displaySystemMessage('Failed to send message', cc.Color.RED);
-                this.messageQueue.push(chatData); // Queue for retry
+                this.messageQueue.push(chatData); 
             }
         });
     },
@@ -318,11 +288,9 @@ cc.Class({
         const label = chatItem.getComponentInChildren(cc.Label);
 
         if (label) {
-            // Format message
             const displayText = this.formatChatMessage(data);
             label.string = displayText;
             
-            // Apply styling
             this.applyChatMessageStyle(label, data);
         }
 
@@ -336,14 +304,11 @@ cc.Class({
 
     applyChatMessageStyle(label, data) {
         if (data.playerId === this.playerId) {
-            // Own messages
             label.node.color = cc.Color.CYAN;
         } else {
-            // Other players' messages
             label.node.color = cc.Color.WHITE;
         }
 
-        // Apply different styles for different message types
         if (data.isSystemMessage) {
             label.node.color = cc.Color.YELLOW;
             label.fontSize = Math.max(14, label.fontSize * 0.9);
@@ -380,15 +345,12 @@ cc.Class({
 
         this.chatContent.addChild(chatItem);
 
-        // Limit chat history
         this.limitChatHistory();
 
-        // Auto-scroll to bottom
         this.scheduleOnce(() => {
             this.scrollToBottom();
         }, 0.05);
 
-        // Show chat UI for new messages
         if (!this.editBox.node.active) {
             this.showChatUI();
             this.startHideTimer();
@@ -410,10 +372,8 @@ cc.Class({
     loadChatHistory(messages) {
         if (!messages || !Array.isArray(messages)) return;
         
-        // Clear existing messages
         this.clearChatHistory();
         
-        // Load historical messages
         messages.forEach(msg => {
             this.displayChatMessage(msg);
         });
@@ -449,7 +409,6 @@ cc.Class({
         }
     },
 
-    // Public API methods
     setUsername(username) {
         this.username = username;
         window.currentUsername = username;
@@ -460,7 +419,6 @@ cc.Class({
         this.currentRoom = roomId;
         window.currentRoomId = roomId;
         
-        // Request chat history for new room
         this.requestChatHistory();
     },
 
@@ -489,13 +447,11 @@ cc.Class({
         );
     },
 
-    // Connection management
     reconnect() {
         this.displaySystemMessage('Attempting to reconnect...', cc.Color.YELLOW);
         this.initializeSocket();
     },
 
-    // Message commands handling
     handleCommand(message) {
         if (!message.startsWith('/')) return false;
         
@@ -543,19 +499,15 @@ cc.Class({
         });
     },
 
-    // Cleanup
     cleanup() {
-        // Clear timers
         this.clearHideTimer();
         
-        // Remove event listeners
         cc.systemEvent.off(cc.SystemEvent.EventType.KEY_DOWN, this.onKeyDown, this);
         
         if (this.node.parent) {
             this.node.parent.off(cc.Node.EventType.TOUCH_START, this.onUserInteraction, this);
         }
 
-        // Clean up socket events
         if (this.socket) {
             this.socket.off('chat-message');
             this.socket.off('chat-error');
@@ -566,11 +518,9 @@ cc.Class({
             this.socket.off('disconnect');
         }
         
-        // Clear message queue
         this.messageQueue = [];
     },
 
-    // Debug methods
     getDebugInfo() {
         return {
             isInitialized: this.isInitialized,
