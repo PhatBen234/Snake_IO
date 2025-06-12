@@ -17,9 +17,9 @@ class GameController {
     }
     this.room.players.set(player.id, player);
     // Auto-start game if conditions are met
-    // if (RoomService.canStart(this.room)) {
-    //   this.gameService.start();
-    // }
+    if (RoomService.canStart(this.room)) {
+      this.gameService.start();
+    }
 
     return true;
   }
