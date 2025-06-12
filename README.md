@@ -25,8 +25,8 @@ requirements:
 - 2.7 Create collectible items that having effects (negative or positive) to the player 
 - 2.8 Create more maps with different difficulties and grid size to play online with others player
 - 2.9 Create feature to play offline with AI players (automatically join the game to having enough player count in a room)
-- 2.10 Implement firebase leader board from menu 
-- 2.11 Implement player chat feature in game (Nice to have)
+- 2.10 Implement firebase leader board from menu   //✅
+- 2.11 Implement player chat feature in game (Nice to have)  //✅
 3. Handle lost connection issue in game
 4. Handle high ping or delay network issue in game
 5. Send the screen shot of game over to save on firebase and display on the leader board thumbnail (Nice to have)

@@ -6,7 +6,7 @@ class Player {
     this.alive = true;
     this.position = startPosition;
     this.direction = { x: 0, y: 0 };
-    this.speed = 5;
+    // this.speed = 5;
     this.body = [{ ...startPosition }];
     this.length = 1;
   }
