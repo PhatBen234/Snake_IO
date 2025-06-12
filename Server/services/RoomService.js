@@ -23,6 +23,8 @@ class RoomService {
       body: p.body,
       score: p.score,
       alive: p.alive,
+      hasSpeedBoost: p.hasSpeedBoost ? p.hasSpeedBoost() : false, // Thêm thông tin speed boost
+      currentSpeed: p.currentSpeed || p.baseSpeed || 5,
     }));
   }
 
@@ -31,6 +33,7 @@ class RoomService {
       id: f.id,
       position: f.position,
       alive: f.alive,
+      type: f.type, // Thêm thông tin loại food
     }));
   }
 
@@ -50,8 +53,8 @@ class RoomService {
 
   static canChangePlayerLimit(room, newLimit) {
     return (
-      room.status === "waiting" && 
-      room.players.size <= newLimit && 
+      room.status === "waiting" &&
+      room.players.size <= newLimit &&
       this.isValidPlayerLimit(newLimit)
     );
   }

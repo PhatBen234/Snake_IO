@@ -7,19 +7,18 @@ const { ccclass, property } = cc._decorator;
 @ccclass
 export default class Snake extends cc.Component {
   @property(cc.SpriteFrame)
-  snakeHeadSprite = null; 
+  snakeHeadSprite = null;
   @property(cc.SpriteFrame)
-  snakeBodySprite = null; 
-
+  snakeBodySprite = null;
   @property(cc.SpriteFrame)
-  snakeTailSprite = null; 
-
+  snakeTailSprite = null;
 
   playerId = null;
   playerData = null;
   segments = [];
   previousHeadPosition = null;
-
+  // NEW: Track speed boost state
+  hasSpeedBoost = false;
 
   get sprites() {
     return {
@@ -29,17 +28,18 @@ export default class Snake extends cc.Component {
     };
   }
 
-
   initializeSnake(playerData) {
     this.playerId = playerData.id;
     this.playerData = playerData;
     this.clearSegments();
     this.createSnakeBody(playerData);
 
-
     if (playerData.body?.length > 0) {
       this.previousHeadPosition = { ...playerData.body[0] };
     }
+
+    // NEW: Initialize speed boost state
+    this.hasSpeedBoost = playerData.hasSpeedBoost || false;
   }
 
   updateSnake(playerData) {
@@ -51,12 +51,13 @@ export default class Snake extends cc.Component {
     this.playerData = playerData;
     this.node.active = true;
     this.updateSnakeBody(playerData);
-  }
 
+    // NEW: Update speed boost state
+    this.hasSpeedBoost = playerData.hasSpeedBoost || false;
+  }
 
   createSnakeBody(playerData) {
     if (!playerData.body?.length) return;
-
 
     for (let i = playerData.body.length - 1; i >= 0; i--) {
       const segment = SnakeSegment.createSegment(
@@ -71,14 +72,12 @@ export default class Snake extends cc.Component {
       this.segments.push(segment);
     }
   }
-
 
   updateSnakeBody(playerData) {
     if (!playerData.body?.length) return;
 
     this.clearSegments();
 
-
     for (let i = playerData.body.length - 1; i >= 0; i--) {
       const segment = SnakeSegment.createSegment(
         this.node,
@@ -91,7 +90,6 @@ export default class Snake extends cc.Component {
       );
       this.segments.push(segment);
     }
-
 
     if (playerData.body.length > 0) {
       SnakeSegment.updateHeadDirection(
@@ -101,7 +99,6 @@ export default class Snake extends cc.Component {
       );
       this.previousHeadPosition = { ...playerData.body[0] };
     }
-
 
     if (playerData.body.length > 1) {
       SnakeSegment.updateTailDirection(this.segments, playerData.body);
@@ -116,7 +113,7 @@ export default class Snake extends cc.Component {
     try {
       this.clearSegments();
     } catch (error) {
-      
+      // Handle cleanup errors silently
     }
 
     this.segments = null;

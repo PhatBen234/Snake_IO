@@ -4,9 +4,12 @@ class PlayerService {
   static movePlayer(player) {
     if (!player.alive) return;
 
+    // Cập nhật tốc độ trước khi di chuyển
+    player.updateSpeed();
+
     const newHead = {
-      x: player.position.x + player.direction.x * GAME_CONSTANTS.PLAYER_SPEED,
-      y: player.position.y + player.direction.y * GAME_CONSTANTS.PLAYER_SPEED,
+      x: player.position.x + player.direction.x * player.currentSpeed,
+      y: player.position.y + player.direction.y * player.currentSpeed,
     };
 
     player.position = newHead;
@@ -82,6 +85,9 @@ class PlayerService {
     player.alive = true;
     player.score = 0;
     player.direction = { x: 1, y: 0 };
+    player.baseSpeed = GAME_CONSTANTS.PLAYER_SPEED;
+    player.currentSpeed = GAME_CONSTANTS.PLAYER_SPEED;
+    player.speedBoostEndTime = 0;
   }
 }
 

@@ -7,7 +7,14 @@ class FoodService {
     while (room.foods.size < GAME_CONSTANTS.FOOD_COUNT) {
       const id = uuidv4();
       const position = this.getRandomPosition(room.config);
-      const food = new Food(id, position);
+
+      // Xác định loại food
+      const foodType =
+        Math.random() < GAME_CONSTANTS.SPEED_FOOD_SPAWN_CHANCE
+          ? GAME_CONSTANTS.FOOD_TYPES.SPEED
+          : GAME_CONSTANTS.FOOD_TYPES.NORMAL;
+
+      const food = new Food(id, position, foodType);
       room.foods.set(food.id, food);
     }
   }
@@ -34,7 +41,15 @@ class FoodService {
 
   static consumeFood(player, food) {
     food.alive = false;
-    this.growPlayer(player, food.value);
+
+    if (food.type === GAME_CONSTANTS.FOOD_TYPES.SPEED) {
+      // Áp dụng speed boost
+      player.applySpeedBoost();
+      console.log(`Player ${player.name} got speed boost!`);
+    } else {
+      // Food thường - tăng kích thước
+      this.growPlayer(player, food.value);
+    }
   }
 
   static growPlayer(player, amount) {

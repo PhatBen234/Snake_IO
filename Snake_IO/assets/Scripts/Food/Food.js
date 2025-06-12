@@ -13,6 +13,10 @@ export default class Food extends cc.Component {
   gridSize = 20;
   pulseAction = null;
   glowAction = null;
+  // NEW: Track food type
+  foodType = "normal";
+  // NEW: Action for speed food special effects
+  speedFoodAction = null;
 
   onLoad() {
     if (!this.fruitImage) {
@@ -32,10 +36,13 @@ export default class Food extends cc.Component {
   initFood(foodId, foodData) {
     this.foodId = foodId;
     this.foodData = foodData;
+    // NEW: Set food type from server data
+    this.foodType = foodData.type || "normal";
 
     this.updatePosition(foodData.position);
     this.setSize(this.gridSize);
-
+    // NEW: Update color based on food type
+    this.updateFoodColor();
     this.startEffects();
   }
 
@@ -43,8 +50,30 @@ export default class Food extends cc.Component {
     if (!foodData) return;
 
     this.foodData = foodData;
+    // NEW: Update food type if changed
+    if (foodData.type && foodData.type !== this.foodType) {
+      this.foodType = foodData.type;
+      this.updateFoodColor();
+      // Restart effects with new type
+      this.stopEffects();
+      this.startEffects();
+    }
+
     this.updatePosition(foodData.position);
     this.updateVisibility(foodData.alive);
+  }
+
+  // NEW: Update color based on food type
+  updateFoodColor() {
+    if (!this.fruitImage) return;
+
+    if (this.foodType === "speed") {
+      // Màu tím crystal lấp lánh (Purple/Magenta) - nổi bật trên nền đen
+      this.fruitImage.color = new cc.Color(186, 85, 211); // Medium Orchid
+    } else {
+      // Màu bình thường (trắng)
+      this.fruitImage.color = cc.Color.WHITE;
+    }
   }
 
   updatePosition(position) {
@@ -74,6 +103,7 @@ export default class Food extends cc.Component {
       this.fruitImage.height = size * 0.8;
     }
   }
+
   startPulseEffect() {
     if (!this.node?.isValid) return;
 
@@ -88,17 +118,53 @@ export default class Food extends cc.Component {
   startGlowEffect() {
     if (!this.fruitImage?.isValid) return;
 
-    const fadeOut = cc.fadeTo(1.0, 150);
-    const fadeIn = cc.fadeTo(1.0, 255);
-    const sequence = cc.sequence(fadeOut, fadeIn);
-    this.glowAction = cc.repeatForever(sequence);
+    if (this.foodType === "speed") {
+      // Special shimmer effect for speed food
+      this.startShimmerEffect();
+    } else {
+      // Normal glow effect
+      const fadeOut = cc.fadeTo(1.0, 150);
+      const fadeIn = cc.fadeTo(1.0, 255);
+      const sequence = cc.sequence(fadeOut, fadeIn);
+      this.glowAction = cc.repeatForever(sequence);
 
+      this.fruitImage.runAction(this.glowAction);
+    }
+  }
+
+  // NEW: Shimmer effect for speed food
+  startShimmerEffect() {
+    if (!this.fruitImage?.isValid) return;
+
+    // Color cycling between purple crystal variations
+    const colorCycle = cc.sequence(
+      cc.tintTo(0.3, 186, 85, 211), // Medium Orchid
+      cc.tintTo(0.3, 255, 105, 180), // Hot Pink
+      cc.tintTo(0.3, 147, 0, 211), // Dark Violet
+      cc.tintTo(0.3, 186, 85, 211) // Back to Medium Orchid
+    );
+
+    this.glowAction = cc.repeatForever(colorCycle);
     this.fruitImage.runAction(this.glowAction);
+  }
+
+  // NEW: Gentle rotation effect for speed food
+  startSpeedFoodRotation() {
+    if (!this.fruitImage?.isValid || this.foodType !== "speed") return;
+
+    const rotateBy = cc.rotateBy(2.0, 360);
+    this.speedFoodAction = cc.repeatForever(rotateBy);
+    this.fruitImage.runAction(this.speedFoodAction);
   }
 
   startEffects() {
     this.startPulseEffect();
     this.scheduleOnce(() => this.startGlowEffect(), Math.random() * 2);
+
+    // NEW: Add rotation effect for speed food
+    if (this.foodType === "speed") {
+      this.scheduleOnce(() => this.startSpeedFoodRotation(), Math.random() * 1);
+    }
   }
 
   stopEffects() {
@@ -110,6 +176,12 @@ export default class Food extends cc.Component {
     if (this.glowAction && this.fruitImage) {
       this.fruitImage.stopAction(this.glowAction);
       this.glowAction = null;
+    }
+
+    // NEW: Stop speed food rotation
+    if (this.speedFoodAction && this.fruitImage) {
+      this.fruitImage.stopAction(this.speedFoodAction);
+      this.speedFoodAction = null;
     }
   }
 
@@ -128,16 +200,40 @@ export default class Food extends cc.Component {
   createEatEffect() {
     if (!this.node?.isValid) return;
 
-    const scaleUp = cc.scaleTo(0.3, 1.5);
-    const fadeOut = cc.fadeTo(0.3, 0);
-    const parallel = cc.spawn(scaleUp, fadeOut);
+    let scaleUp, fadeOut;
 
-    const callback = cc.callFunc(() => {
-      this.resetNodeAppearance();
-    });
+    if (this.foodType === "speed") {
+      // Special eat effect for speed food
+      scaleUp = cc.scaleTo(0.3, 2.0); // Bigger scale
+      fadeOut = cc.fadeTo(0.3, 0);
 
-    const sequence = cc.sequence(parallel, callback);
-    this.node.runAction(sequence);
+      // Add sparkle effect
+      const sparkle = cc.sequence(
+        cc.tintTo(0.1, 255, 255, 255), // White flash
+        cc.tintTo(0.2, 186, 85, 211) // Back to purple
+      );
+
+      const parallel = cc.spawn(scaleUp, fadeOut, sparkle);
+
+      const callback = cc.callFunc(() => {
+        this.resetNodeAppearance();
+      });
+
+      const sequence = cc.sequence(parallel, callback);
+      this.node.runAction(sequence);
+    } else {
+      // Normal eat effect
+      scaleUp = cc.scaleTo(0.3, 1.5);
+      fadeOut = cc.fadeTo(0.3, 0);
+      const parallel = cc.spawn(scaleUp, fadeOut);
+
+      const callback = cc.callFunc(() => {
+        this.resetNodeAppearance();
+      });
+
+      const sequence = cc.sequence(parallel, callback);
+      this.node.runAction(sequence);
+    }
   }
 
   resetNodeAppearance() {
@@ -145,6 +241,7 @@ export default class Food extends cc.Component {
     this.node.opacity = 255;
     if (this.fruitImage) {
       this.fruitImage.opacity = 255;
+      this.fruitImage.rotation = 0; // Reset rotation
     }
   }
 
@@ -152,6 +249,7 @@ export default class Food extends cc.Component {
     return {
       foodId: this.foodId,
       foodData: this.foodData,
+      foodType: this.foodType, // NEW: Include food type
       isAlive: this.node.active,
       position: this.foodData?.position,
     };
@@ -161,6 +259,7 @@ export default class Food extends cc.Component {
     this.stopEffects();
     this.resetNodeAppearance();
     this.node.active = true;
+    this.updateFoodColor(); // NEW: Reset color when resetting food
     this.startEffects();
   }
 
