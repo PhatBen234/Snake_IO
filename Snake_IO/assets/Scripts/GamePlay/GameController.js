@@ -16,6 +16,7 @@ export default class GameController extends cc.Component {
   @property(cc.Node) gameArea = null;
   @property(cc.Label) scoreLabel = null;
   @property(cc.Label) statusLabel = null;
+  @property(cc.Label) resultLabel = null;
   @property(cc.Node) scoreTablePopup = null;
   @property(cc.Node) scoreTableContent = null;
   @property(cc.Prefab) scoreLabelPrefab = null;
@@ -59,6 +60,7 @@ export default class GameController extends cc.Component {
     this.uiManager.initialize({
       scoreLabel: this.scoreLabel,
       statusLabel: this.statusLabel,
+      resultLabel: this.resultLabel,
       scoreTablePopup: this.scoreTablePopup,
       backToLobbyButton: this.backToLobbyButton,
       chatControllerNode: this.chatControllerNode,
