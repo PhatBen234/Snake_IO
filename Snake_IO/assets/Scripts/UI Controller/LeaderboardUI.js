@@ -15,12 +15,12 @@ cc.Class({
   },
 
   setupButtons() {
-    if (this.openButton) {
-      this.openButton.node.on("click", this.onOpenButtonClicked, this);
+    if (this.openButton && this.openButton.node) {
+        this.openButton.node.on('click', this.onOpenButtonClicked, this);
     }
 
-    if (this.closeButton) {
-      this.closeButton.node.on("click", this.onCloseButtonClicked, this);
+    if (this.closeButton && this.closeButton.node) {
+        this.closeButton.node.on('click', this.onCloseButtonClicked, this);
     }
   },
 
@@ -142,11 +142,11 @@ cc.Class({
   },
 
   onDestroy() {
-    if (this.openButton) {
-      this.openButton.node.off("click", this.onOpenButtonClicked, this);
+    if (this.openButton && this.openButton.node) {
+        this.openButton.node.off('click', this.onOpenButtonClicked, this);
     }
-    if (this.closeButton) {
-      this.closeButton.node.off("click", this.onCloseButtonClicked, this);
+    if (this.closeButton && this.closeButton.node) {
+        this.closeButton.node.off('click', this.onCloseButtonClicked, this);
     }
   },
 });
